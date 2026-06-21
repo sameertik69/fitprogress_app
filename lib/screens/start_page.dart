@@ -1,14 +1,19 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/photo_angle.dart';
 import '../models/progress_session.dart';
+import '../services/session_storage.dart';
 import '../widgets/analysis_loading_section.dart';
 import '../widgets/intro_section.dart';
 import '../widgets/photo_capture_section.dart';
 import '../widgets/progress_report_section.dart';
 import '../widgets/session_history_section.dart';
 import '../widgets/start_button.dart';
+
+const _sessionsStorageKey = 'fitprogress_sessions';
 
 class StartPage extends StatefulWidget {
   const StartPage({super.key});
@@ -19,12 +24,83 @@ class StartPage extends StatefulWidget {
 
 class _StartPageState extends State<StartPage> {
   final _imagePicker = ImagePicker();
+  final _sessionStorage = createSessionStorage();
+  final _weightController = TextEditingController();
+  final _phaseController = TextEditingController();
+  final _noteController = TextEditingController();
   final Map<PhotoAngle, XFile> _photos = {};
   final List<ProgressSession> _sessions = [];
+  ProgressSession? _currentReport;
   bool _isAnalyzing = false;
   bool _showReport = false;
   bool _currentReportSaved = false;
   bool _showComparison = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSessions();
+  }
+
+  @override
+  void dispose() {
+    _weightController.dispose();
+    _phaseController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSessions() async {
+    final encodedSessions = await _sessionStorage.read(_sessionsStorageKey);
+    final loadedSessions = <ProgressSession>[];
+
+    if (encodedSessions == null || encodedSessions.isEmpty) {
+      return;
+    }
+
+    final dynamic decodedSessions;
+    try {
+      decodedSessions = jsonDecode(encodedSessions);
+    } on FormatException {
+      return;
+    }
+
+    if (decodedSessions is! List<dynamic>) {
+      return;
+    }
+
+    for (final decodedSession in decodedSessions) {
+      try {
+        loadedSessions.add(
+          ProgressSession.fromJson(
+            Map<String, dynamic>.from(decodedSession as Map<dynamic, dynamic>),
+          ),
+        );
+      } on FormatException {
+        continue;
+      } on TypeError {
+        continue;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _sessions
+        ..clear()
+        ..addAll(loadedSessions);
+    });
+  }
+
+  Future<void> _persistSessions() async {
+    final encodedSessions = jsonEncode(
+      _sessions.map((session) => session.toJson()).toList(),
+    );
+
+    await _sessionStorage.write(_sessionsStorageKey, encodedSessions);
+  }
 
   Future<void> _choosePhotoSource(PhotoAngle angle) async {
     final source = await showModalBottomSheet<ImageSource>(
@@ -89,6 +165,17 @@ class _StartPageState extends State<StartPage> {
       _isAnalyzing = false;
       _showReport = false;
       _currentReportSaved = false;
+      _currentReport = null;
+    });
+  }
+
+  void _removePhoto(PhotoAngle angle) {
+    setState(() {
+      _photos.remove(angle);
+      _isAnalyzing = false;
+      _showReport = false;
+      _currentReportSaved = false;
+      _currentReport = null;
     });
   }
 
@@ -97,6 +184,7 @@ class _StartPageState extends State<StartPage> {
       _isAnalyzing = true;
       _showReport = false;
       _currentReportSaved = false;
+      _currentReport = null;
     });
 
     await Future<void>.delayed(const Duration(seconds: 2));
@@ -108,32 +196,53 @@ class _StartPageState extends State<StartPage> {
     setState(() {
       _isAnalyzing = false;
       _showReport = true;
+      _currentReport = _createDraftSession();
     });
   }
 
-  void _saveCurrentReport() {
+  Future<void> _saveCurrentReport() async {
     if (_currentReportSaved) {
       return;
     }
 
-    final score = 72 + (_sessions.length % 4) * 3;
-    final postureScore = 81 + (_sessions.length % 3) * 2;
+    final draftReport = _currentReport ?? _createDraftSession();
+    final session = draftReport.copyWith(
+      createdAt: DateTime.now(),
+      weightKg: _parseWeight(_weightController.text),
+      phaseLabel: _phaseController.text.trim(),
+      note: _noteController.text.trim(),
+    );
 
     setState(() {
-      _sessions.insert(
-        0,
-        ProgressSession(
-          createdAt: DateTime.now(),
-          visualScore: score,
-          confidence: 'متوسط',
-          postureScore: postureScore,
-          summary:
-              'تحسن بصري جيد في تناسق الجزء العلوي مع حاجة بسيطة لتثبيت ظروف التصوير في الجلسات القادمة.',
-        ),
-      );
+      _sessions.insert(0, session);
       _currentReportSaved = true;
       _showComparison = false;
+      _currentReport = session;
     });
+
+    try {
+      await _persistSessions();
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _sessions.remove(session);
+        _currentReportSaved = false;
+        _currentReport = draftReport;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر حفظ التقرير، حاول مرة ثانية')),
+      );
+
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('تم حفظ التقرير في سجل الجلسات')),
@@ -146,6 +255,7 @@ class _StartPageState extends State<StartPage> {
       _showReport = false;
       _currentReportSaved = false;
       _showComparison = false;
+      _currentReport = null;
     });
   }
 
@@ -156,13 +266,145 @@ class _StartPageState extends State<StartPage> {
       _showReport = false;
       _currentReportSaved = false;
       _showComparison = false;
+      _currentReport = null;
     });
+    _weightController.clear();
+    _phaseController.clear();
+    _noteController.clear();
   }
 
   void _toggleComparison() {
     setState(() {
       _showComparison = !_showComparison;
     });
+  }
+
+  Future<void> _deleteSession(ProgressSession session) async {
+    final sessionIndex = _sessions.indexOf(session);
+    if (sessionIndex == -1) {
+      return;
+    }
+
+    setState(() {
+      _sessions.removeAt(sessionIndex);
+      if (_sessions.length < 2) {
+        _showComparison = false;
+      }
+    });
+
+    try {
+      await _persistSessions();
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _sessions.insert(sessionIndex, session);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر حذف الجلسة، حاول مرة ثانية')),
+      );
+
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('تم حذف الجلسة')));
+  }
+
+  Future<void> _clearSessions() async {
+    if (_sessions.isEmpty) {
+      return;
+    }
+
+    final previousSessions = List<ProgressSession>.from(_sessions);
+    final previousShowComparison = _showComparison;
+
+    setState(() {
+      _sessions.clear();
+      _showComparison = false;
+    });
+
+    try {
+      await _persistSessions();
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _sessions.addAll(previousSessions);
+        _showComparison = previousShowComparison;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر مسح السجل، حاول مرة ثانية')),
+      );
+
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('تم مسح السجل')));
+  }
+
+  ProgressSession _createDraftSession() {
+    final sessionNumber = _sessions.length + 1;
+    final visualScore = (70 + sessionNumber * 3).clamp(70, 92).toInt();
+    final postureScore = (79 + (_photos.length * 2) + sessionNumber)
+        .clamp(78, 95)
+        .toInt();
+    final shoulderWaistChange = 3.4 + sessionNumber * 0.7;
+    final confidence = postureScore >= 88
+        ? 'مرتفع'
+        : postureScore >= 82
+        ? 'متوسط'
+        : 'بحاجة لتحسين';
+    final symmetryLabel = visualScore >= 84
+        ? 'ممتاز'
+        : visualScore >= 76
+        ? 'جيد'
+        : 'مقبول';
+    final comparabilityLabel = postureScore >= 86
+        ? 'قوية'
+        : postureScore >= 81
+        ? 'مقبولة'
+        : 'ضعيفة';
+
+    return ProgressSession(
+      createdAt: DateTime.now(),
+      visualScore: visualScore,
+      confidence: confidence,
+      postureScore: postureScore,
+      symmetryLabel: symmetryLabel,
+      comparabilityLabel: comparabilityLabel,
+      shoulderWaistChange: double.parse(shoulderWaistChange.toStringAsFixed(1)),
+      summary:
+          'الجلسة رقم $sessionNumber تظهر قراءة بصرية $symmetryLabel مع قابلية مقارنة $comparabilityLabel. ثبات الصور يؤثر مباشرة على دقة متابعة تطور الجسم والعضلات.',
+      recommendation:
+          'للجلسة القادمة حافظ على نفس المسافة والإضاءة والوقفة، واكتب الوزن أو مرحلة التمرين حتى تصبح المقارنة أوضح.',
+    );
+  }
+
+  double? _parseWeight(String value) {
+    final normalizedValue = value.trim().replaceAll(',', '.');
+    if (normalizedValue.isEmpty) {
+      return null;
+    }
+
+    return double.tryParse(normalizedValue);
   }
 
   @override
@@ -180,6 +422,7 @@ class _StartPageState extends State<StartPage> {
               PhotoCaptureSection(
                 photos: _photos,
                 onPickPhoto: _choosePhotoSource,
+                onRemovePhoto: _removePhoto,
               ),
               const SizedBox(height: 24),
               StartButton(
@@ -194,8 +437,14 @@ class _StartPageState extends State<StartPage> {
               if (_showReport) ...[
                 const SizedBox(height: 24),
                 ProgressReportSection(
+                  session: _currentReport ?? _createDraftSession(),
                   isSaved: _currentReportSaved,
-                  onSaveReport: _saveCurrentReport,
+                  weightController: _weightController,
+                  phaseController: _phaseController,
+                  noteController: _noteController,
+                  onSaveReport: () {
+                    _saveCurrentReport();
+                  },
                   onEditPhotos: _editPhotos,
                   onResetScan: _resetScan,
                 ),
@@ -206,6 +455,10 @@ class _StartPageState extends State<StartPage> {
                   sessions: _sessions,
                   showComparison: _showComparison,
                   onToggleComparison: _toggleComparison,
+                  onDeleteSession: _deleteSession,
+                  onClearSessions: () {
+                    _clearSessions();
+                  },
                 ),
               ],
             ],

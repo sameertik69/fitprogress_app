@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -7,11 +9,13 @@ class PhotoCaptureSection extends StatelessWidget {
   const PhotoCaptureSection({
     required this.photos,
     required this.onPickPhoto,
+    required this.onRemovePhoto,
     super.key,
   });
 
   final Map<PhotoAngle, XFile> photos;
   final ValueChanged<PhotoAngle> onPickPhoto;
+  final ValueChanged<PhotoAngle> onRemovePhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +44,7 @@ class PhotoCaptureSection extends StatelessWidget {
           icon: Icons.accessibility_new,
           photo: photos[PhotoAngle.front],
           onPickPhoto: onPickPhoto,
+          onRemovePhoto: onRemovePhoto,
         ),
         const SizedBox(height: 12),
         PhotoSlot(
@@ -49,6 +54,7 @@ class PhotoCaptureSection extends StatelessWidget {
           icon: Icons.rotate_90_degrees_ccw,
           photo: photos[PhotoAngle.side],
           onPickPhoto: onPickPhoto,
+          onRemovePhoto: onRemovePhoto,
         ),
         const SizedBox(height: 12),
         PhotoSlot(
@@ -58,6 +64,7 @@ class PhotoCaptureSection extends StatelessWidget {
           icon: Icons.person_outline,
           photo: photos[PhotoAngle.back],
           onPickPhoto: onPickPhoto,
+          onRemovePhoto: onRemovePhoto,
         ),
       ],
     );
@@ -72,6 +79,7 @@ class PhotoSlot extends StatelessWidget {
     required this.icon,
     required this.photo,
     required this.onPickPhoto,
+    required this.onRemovePhoto,
     super.key,
   });
 
@@ -81,6 +89,7 @@ class PhotoSlot extends StatelessWidget {
   final IconData icon;
   final XFile? photo;
   final ValueChanged<PhotoAngle> onPickPhoto;
+  final ValueChanged<PhotoAngle> onRemovePhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -129,12 +138,19 @@ class PhotoSlot extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(
-                hasPhoto
-                    ? Icons.check_circle
-                    : Icons.add_photo_alternate_outlined,
-                color: colorScheme.primary,
-              ),
+              if (hasPhoto) ...[
+                IconButton(
+                  onPressed: () => onRemovePhoto(angle),
+                  icon: const Icon(Icons.close),
+                  color: colorScheme.error,
+                  tooltip: 'حذف الصورة',
+                ),
+              ] else ...[
+                Icon(
+                  Icons.add_photo_alternate_outlined,
+                  color: colorScheme.primary,
+                ),
+              ],
             ],
           ),
         ),
@@ -167,16 +183,37 @@ class PhotoPreview extends StatelessWidget {
                   size: 34,
                 ),
               )
-            : Image.network(
-                photo!.path,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return ColoredBox(
-                    color: colorScheme.errorContainer,
-                    child: Icon(
-                      Icons.broken_image_outlined,
-                      color: colorScheme.onErrorContainer,
-                    ),
+            : FutureBuilder<Uint8List>(
+                future: photo!.readAsBytes(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return ColoredBox(
+                      color: colorScheme.surfaceContainerHighest,
+                      child: Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Image.memory(
+                    snapshot.data!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return ColoredBox(
+                        color: colorScheme.errorContainer,
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: colorScheme.onErrorContainer,
+                        ),
+                      );
+                    },
                   );
                 },
               ),

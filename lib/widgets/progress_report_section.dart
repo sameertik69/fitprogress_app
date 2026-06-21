@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
 
+import '../models/progress_session.dart';
+
 class ProgressReportSection extends StatelessWidget {
   const ProgressReportSection({
+    required this.session,
     required this.isSaved,
+    required this.weightController,
+    required this.phaseController,
+    required this.noteController,
     required this.onSaveReport,
     required this.onEditPhotos,
     required this.onResetScan,
     super.key,
   });
 
+  final ProgressSession session;
   final bool isSaved;
+  final TextEditingController weightController;
+  final TextEditingController phaseController;
+  final TextEditingController noteController;
   final VoidCallback onSaveReport;
   final VoidCallback onEditPhotos;
   final VoidCallback onResetScan;
@@ -32,90 +42,109 @@ class ProgressReportSection extends StatelessWidget {
             children: [
               Icon(Icons.analytics_outlined, color: colorScheme.primary),
               const SizedBox(width: 10),
-              Text(
-                'تقرير التقدم التجريبي',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              Expanded(
+                child: Text(
+                  'تقرير التقدم التجريبي',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          const ReportSummaryCard(),
+          ReportSummaryCard(session: session),
           const SizedBox(height: 12),
-          const ScoreCard(),
+          ScoreCard(score: session.visualScore),
           const SizedBox(height: 16),
-          const Row(
+          Row(
             children: [
               Expanded(
                 child: MiniMetricCard(
                   icon: Icons.balance_outlined,
                   title: 'التناسق العام',
-                  value: 'جيد',
+                  value: session.symmetryLabel,
                 ),
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: MiniMetricCard(
                   icon: Icons.accessibility_new,
                   title: 'ثبات الوقفة',
-                  value: '81%',
+                  value: '${session.postureScore}%',
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          const Row(
+          Row(
             children: [
               Expanded(
                 child: MiniMetricCard(
                   icon: Icons.image_search_outlined,
                   title: 'وضوح الصور',
-                  value: 'متوسط',
+                  value: session.confidence,
                 ),
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: MiniMetricCard(
                   icon: Icons.compare_arrows,
                   title: 'قابلية المقارنة',
-                  value: 'مقبولة',
+                  value: session.comparabilityLabel,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          const ReportMetric(
+          ReportMetric(
             title: 'تقدير التطور البصري',
-            value: '72%',
-            description:
-                'تحسن ظاهر في تناسق الجزء العلوي مقارنة بالجلسة السابقة.',
+            value: '${session.visualScore}%',
+            description: session.summary,
           ),
           const Divider(height: 24),
-          const ReportMetric(
+          ReportMetric(
             title: 'مؤشر الثقة',
-            value: 'متوسط',
+            value: session.confidence,
             description:
                 'يعتمد على ثبات الإضاءة والمسافة ووضوح الصور المختارة.',
           ),
           const Divider(height: 24),
-          const ReportMetric(
+          ReportMetric(
             title: 'تغير نسبة الكتف إلى الخصر',
-            value: '+4.8%',
+            value: '+${session.shoulderWaistChange.toStringAsFixed(1)}%',
             description:
                 'تغير تقديري مبني على مقارنة بصرية وليس قياسًا تشريحيًا دقيقًا.',
           ),
           const Divider(height: 24),
-          const ReportMetric(
+          ReportMetric(
             title: 'ثبات الوقفة',
-            value: '81%',
+            value: '${session.postureScore}%',
             description:
                 'كلما كانت الوقفة أقرب بين الجلسات كانت المقارنة أفضل.',
           ),
           const SizedBox(height: 16),
-          const RecommendationBox(),
+          SessionInputs(
+            weightController: weightController,
+            phaseController: phaseController,
+            noteController: noteController,
+            enabled: !isSaved,
+          ),
+          const SizedBox(height: 16),
+          MessageBox(
+            icon: Icons.lightbulb_outline,
+            iconColor: colorScheme.primary,
+            title: 'توصية الجلسة القادمة',
+            text: session.recommendation,
+          ),
           const SizedBox(height: 12),
-          const WarningBox(),
+          MessageBox(
+            icon: Icons.info_outline,
+            iconColor: colorScheme.tertiary,
+            title: 'تنبيه مهم',
+            text:
+                'هذه النتائج تقديرية وتجريبية، ولا تمثل قياسًا طبيًا أو قياسًا دقيقًا للكتلة العضلية. التحليل الحقيقي سيُضاف لاحقًا.',
+          ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: isSaved ? null : onSaveReport,
@@ -167,7 +196,9 @@ class ProgressReportSection extends StatelessWidget {
 }
 
 class ReportSummaryCard extends StatelessWidget {
-  const ReportSummaryCard({super.key});
+  const ReportSummaryCard({required this.session, super.key});
+
+  final ProgressSession session;
 
   @override
   Widget build(BuildContext context) {
@@ -190,7 +221,7 @@ class ReportSummaryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'تحسن بصري جيد',
+                  session.visualScore >= 84 ? 'تحسن بصري قوي' : 'تحسن بصري جيد',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: colorScheme.primary,
                     fontWeight: FontWeight.w900,
@@ -198,7 +229,7 @@ class ReportSummaryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'المقارنة التجريبية تشير إلى تقدم جيد في شكل الجزء العلوي، مع حاجة بسيطة لتحسين ثبات ظروف التصوير في الجلسات القادمة.',
+                  session.summary,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                     height: 1.4,
@@ -214,7 +245,9 @@ class ReportSummaryCard extends StatelessWidget {
 }
 
 class ScoreCard extends StatelessWidget {
-  const ScoreCard({super.key});
+  const ScoreCard({required this.score, super.key});
+
+  final int score;
 
   @override
   Widget build(BuildContext context) {
@@ -232,7 +265,7 @@ class ScoreCard extends StatelessWidget {
             width: 78,
             height: 78,
             child: CircularProgressIndicator(
-              value: 0.72,
+              value: score / 100,
               strokeWidth: 8,
               backgroundColor: colorScheme.surface,
               color: colorScheme.primary,
@@ -251,7 +284,7 @@ class ScoreCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '72%',
+                  '$score%',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     color: colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.w900,
@@ -262,6 +295,79 @@ class ScoreCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class SessionInputs extends StatelessWidget {
+  const SessionInputs({
+    required this.weightController,
+    required this.phaseController,
+    required this.noteController,
+    required this.enabled,
+    super.key,
+  });
+
+  final TextEditingController weightController;
+  final TextEditingController phaseController;
+  final TextEditingController noteController;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'معلومات الجلسة',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: weightController,
+                enabled: enabled,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'الوزن',
+                  suffixText: 'kg',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: phaseController,
+                enabled: enabled,
+                decoration: const InputDecoration(
+                  labelText: 'المرحلة',
+                  hintText: 'تنشيف / تضخيم',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: noteController,
+          enabled: enabled,
+          minLines: 2,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: 'ملاحظات',
+            hintText: 'مثال: بعد أسبوعين من الالتزام أو تغيير البرنامج',
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -362,40 +468,6 @@ class ReportMetric extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class RecommendationBox extends StatelessWidget {
-  const RecommendationBox({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return MessageBox(
-      icon: Icons.lightbulb_outline,
-      iconColor: colorScheme.primary,
-      title: 'توصية الجلسة القادمة',
-      text:
-          'استمر بنفس طريقة التصوير: نفس المسافة، نفس الإضاءة، ونفس الوقفة. هذا يجعل مقارنة تطور الجسم والعضلات أكثر اتساقًا.',
-    );
-  }
-}
-
-class WarningBox extends StatelessWidget {
-  const WarningBox({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return MessageBox(
-      icon: Icons.info_outline,
-      iconColor: colorScheme.tertiary,
-      title: 'تنبيه مهم',
-      text:
-          'هذه النتائج تقديرية وتجريبية، ولا تمثل قياسًا طبيًا أو قياسًا دقيقًا للكتلة العضلية. التحليل الحقيقي سيُضاف لاحقًا.',
     );
   }
 }
