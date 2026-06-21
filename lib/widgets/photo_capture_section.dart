@@ -1,0 +1,186 @@
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../models/photo_angle.dart';
+
+class PhotoCaptureSection extends StatelessWidget {
+  const PhotoCaptureSection({
+    required this.photos,
+    required this.onPickPhoto,
+    super.key,
+  });
+
+  final Map<PhotoAngle, XFile> photos;
+  final ValueChanged<PhotoAngle> onPickPhoto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'صور المقارنة المطلوبة',
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'التقط أو اختر نفس الزوايا في كل مرة حتى تكون المقارنة أكثر ثباتًا.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 16),
+        PhotoSlot(
+          angle: PhotoAngle.front,
+          title: 'الصورة الأمامية',
+          subtitle: 'الوقوف بشكل مستقيم والذراعان بجانب الجسم',
+          icon: Icons.accessibility_new,
+          photo: photos[PhotoAngle.front],
+          onPickPhoto: onPickPhoto,
+        ),
+        const SizedBox(height: 12),
+        PhotoSlot(
+          angle: PhotoAngle.side,
+          title: 'الصورة الجانبية',
+          subtitle: 'نفس المسافة والإضاءة مع دوران الجسم للجانب',
+          icon: Icons.rotate_90_degrees_ccw,
+          photo: photos[PhotoAngle.side],
+          onPickPhoto: onPickPhoto,
+        ),
+        const SizedBox(height: 12),
+        PhotoSlot(
+          angle: PhotoAngle.back,
+          title: 'الصورة الخلفية',
+          subtitle: 'الظهر باتجاه الكاميرا والوقفة ثابتة',
+          icon: Icons.person_outline,
+          photo: photos[PhotoAngle.back],
+          onPickPhoto: onPickPhoto,
+        ),
+      ],
+    );
+  }
+}
+
+class PhotoSlot extends StatelessWidget {
+  const PhotoSlot({
+    required this.angle,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.photo,
+    required this.onPickPhoto,
+    super.key,
+  });
+
+  final PhotoAngle angle;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final XFile? photo;
+  final ValueChanged<PhotoAngle> onPickPhoto;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final hasPhoto = photo != null;
+
+    return Material(
+      color: colorScheme.surface,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: () => onPickPhoto(angle),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: hasPhoto
+                  ? colorScheme.primary
+                  : colorScheme.outlineVariant,
+            ),
+          ),
+          child: Row(
+            children: [
+              PhotoPreview(icon: icon, photo: photo),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      hasPhoto ? 'تم اختيار الصورة. اضغط لتغييرها.' : subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                hasPhoto
+                    ? Icons.check_circle
+                    : Icons.add_photo_alternate_outlined,
+                color: colorScheme.primary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PhotoPreview extends StatelessWidget {
+  const PhotoPreview({required this.icon, required this.photo, super.key});
+
+  final IconData icon;
+  final XFile? photo;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 64,
+        height: 88,
+        child: photo == null
+            ? ColoredBox(
+                color: colorScheme.primaryContainer,
+                child: Icon(
+                  icon,
+                  color: colorScheme.onPrimaryContainer,
+                  size: 34,
+                ),
+              )
+            : Image.network(
+                photo!.path,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return ColoredBox(
+                    color: colorScheme.errorContainer,
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      color: colorScheme.onErrorContainer,
+                    ),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
