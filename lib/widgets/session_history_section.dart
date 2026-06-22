@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../models/photo_angle.dart';
 import '../models/progress_session.dart';
+import '../services/supabase_session_service.dart';
 
 class SessionHistorySection extends StatelessWidget {
   const SessionHistorySection({
@@ -91,6 +93,7 @@ class SessionComparisonCard extends StatelessWidget {
 
   final ProgressSession current;
   final ProgressSession previous;
+  static const _supabaseSessionService = SupabaseSessionService();
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +134,14 @@ class SessionComparisonCard extends StatelessWidget {
               ),
             ],
           ),
+          if (current.hasPhotoPaths && previous.hasPhotoPaths) ...[
+            const SizedBox(height: 14),
+            SessionPhotoComparison(
+              current: current,
+              previous: previous,
+              service: _supabaseSessionService,
+            ),
+          ],
           const SizedBox(height: 14),
           ComparisonRow(label: 'فرق تقدير التطور البصري', value: scoreLabel),
           const Divider(height: 22),
@@ -162,6 +173,175 @@ class SessionComparisonCard extends StatelessWidget {
     final diff = currentWeight - previousWeight;
     final value = diff.toStringAsFixed(1);
     return diff >= 0 ? '+$value kg' : '$value kg';
+  }
+}
+
+class SessionPhotoComparison extends StatelessWidget {
+  const SessionPhotoComparison({
+    required this.current,
+    required this.previous,
+    required this.service,
+    super.key,
+  });
+
+  final ProgressSession current;
+  final ProgressSession previous;
+  final SupabaseSessionService service;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return FutureBuilder<
+      ({Map<String, String> current, Map<String, String> previous})
+    >(
+      future: _loadPhotoUrls(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox(
+            height: 140,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final data = snapshot.data;
+        if (data == null || data.current.isEmpty || data.previous.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: Text(
+              'المقارنة المصورة غير متاحة لهذه الجلسات.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'مقارنة الصور',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            for (final angle in PhotoAngle.values) ...[
+              if (data.current[angle.storageName] != null &&
+                  data.previous[angle.storageName] != null) ...[
+                PhotoAngleComparisonRow(
+                  label: angle.arabicLabel,
+                  currentUrl: data.current[angle.storageName]!,
+                  previousUrl: data.previous[angle.storageName]!,
+                ),
+                const SizedBox(height: 10),
+              ],
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Future<({Map<String, String> current, Map<String, String> previous})>
+  _loadPhotoUrls() async {
+    final currentUrls = await service.createSignedPhotoUrlsByAngle(current);
+    final previousUrls = await service.createSignedPhotoUrlsByAngle(previous);
+    return (current: currentUrls, previous: previousUrls);
+  }
+}
+
+class PhotoAngleComparisonRow extends StatelessWidget {
+  const PhotoAngleComparisonRow({
+    required this.label,
+    required this.currentUrl,
+    required this.previousUrl,
+    super.key,
+  });
+
+  final String label;
+  final String currentUrl;
+  final String previousUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: LabeledComparisonPhoto(
+                  label: 'السابقة',
+                  url: previousUrl,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: LabeledComparisonPhoto(
+                  label: 'الحالية',
+                  url: currentUrl,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LabeledComparisonPhoto extends StatelessWidget {
+  const LabeledComparisonPhoto({
+    required this.label,
+    required this.url,
+    super.key,
+  });
+
+  final String label;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        StoredPhotoPreview(url: url),
+      ],
+    );
   }
 }
 
@@ -207,6 +387,7 @@ class SessionHistoryTile extends StatelessWidget {
 
   final ProgressSession session;
   final VoidCallback onDelete;
+  static const _supabaseSessionService = SupabaseSessionService();
 
   @override
   Widget build(BuildContext context) {
@@ -376,6 +557,13 @@ class SessionHistoryTile extends StatelessWidget {
                         ),
                       ),
                     ],
+                    if (session.hasPhotoPaths) ...[
+                      const SizedBox(height: 16),
+                      SessionStoredPhotos(
+                        session: session,
+                        service: _supabaseSessionService,
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: () => Navigator.of(context).pop(),
@@ -401,6 +589,103 @@ class SessionHistoryTile extends StatelessWidget {
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
     return '${date.year}/${date.month}/${date.day} - $hour:$minute';
+  }
+}
+
+class SessionStoredPhotos extends StatelessWidget {
+  const SessionStoredPhotos({
+    required this.session,
+    required this.service,
+    super.key,
+  });
+
+  final ProgressSession session;
+  final SupabaseSessionService service;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return FutureBuilder<List<String>>(
+      future: service.createSignedPhotoUrls(session),
+      builder: (context, snapshot) {
+        final urls = snapshot.data ?? const [];
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox(
+            height: 96,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (urls.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'تعذر تحميل صور الجلسة الآن.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'صور الجلسة',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                for (final url in urls) ...[
+                  Expanded(child: StoredPhotoPreview(url: url)),
+                  if (url != urls.last) const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class StoredPhotoPreview extends StatelessWidget {
+  const StoredPhotoPreview({required this.url, super.key});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: AspectRatio(
+        aspectRatio: 3 / 4,
+        child: Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return ColoredBox(
+              color: colorScheme.errorContainer,
+              child: Icon(
+                Icons.broken_image_outlined,
+                color: colorScheme.onErrorContainer,
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 }
 

@@ -13,6 +13,9 @@ class ProgressSession {
     this.weightKg,
     this.note = '',
     this.phaseLabel = '',
+    this.frontPhotoPath,
+    this.sidePhotoPath,
+    this.backPhotoPath,
   });
 
   final String? id;
@@ -28,6 +31,23 @@ class ProgressSession {
   final double? weightKg;
   final String note;
   final String phaseLabel;
+  final String? frontPhotoPath;
+  final String? sidePhotoPath;
+  final String? backPhotoPath;
+
+  List<String> get photoPaths {
+    return [?frontPhotoPath, ?sidePhotoPath, ?backPhotoPath];
+  }
+
+  bool get hasPhotoPaths => photoPaths.isNotEmpty;
+
+  Map<String, String> get photoPathsByAngle {
+    return {
+      'front': ?frontPhotoPath,
+      'side': ?sidePhotoPath,
+      'back': ?backPhotoPath,
+    };
+  }
 
   factory ProgressSession.fromJson(Map<String, dynamic> json) {
     return ProgressSession(
@@ -47,6 +67,9 @@ class ProgressSession {
       weightKg: (json['weightKg'] as num?)?.toDouble(),
       note: json['note'] as String? ?? '',
       phaseLabel: json['phaseLabel'] as String? ?? '',
+      frontPhotoPath: json['frontPhotoPath'] as String?,
+      sidePhotoPath: json['sidePhotoPath'] as String?,
+      backPhotoPath: json['backPhotoPath'] as String?,
     );
   }
 
@@ -68,6 +91,9 @@ class ProgressSession {
       weightKg: (row['weight_kg'] as num?)?.toDouble(),
       note: row['note'] as String? ?? '',
       phaseLabel: row['phase_label'] as String? ?? '',
+      frontPhotoPath: row['front_photo_path'] as String?,
+      sidePhotoPath: row['side_photo_path'] as String?,
+      backPhotoPath: row['back_photo_path'] as String?,
     );
   }
 
@@ -86,10 +112,17 @@ class ProgressSession {
       'weightKg': weightKg,
       'note': note,
       'phaseLabel': phaseLabel,
+      'frontPhotoPath': frontPhotoPath,
+      'sidePhotoPath': sidePhotoPath,
+      'backPhotoPath': backPhotoPath,
     };
   }
 
-  Map<String, dynamic> toSupabaseInsert() {
+  Map<String, dynamic> toSupabaseInsert({
+    String? frontPhotoPath,
+    String? sidePhotoPath,
+    String? backPhotoPath,
+  }) {
     return {
       'created_at': createdAt.toIso8601String(),
       'visual_score': visualScore,
@@ -103,6 +136,9 @@ class ProgressSession {
       'weight_kg': weightKg,
       'note': note,
       'phase_label': phaseLabel,
+      'front_photo_path': frontPhotoPath ?? this.frontPhotoPath,
+      'side_photo_path': sidePhotoPath ?? this.sidePhotoPath,
+      'back_photo_path': backPhotoPath ?? this.backPhotoPath,
     };
   }
 
@@ -120,6 +156,9 @@ class ProgressSession {
     double? weightKg,
     String? note,
     String? phaseLabel,
+    String? frontPhotoPath,
+    String? sidePhotoPath,
+    String? backPhotoPath,
   }) {
     return ProgressSession(
       id: id ?? this.id,
@@ -135,6 +174,9 @@ class ProgressSession {
       weightKg: weightKg ?? this.weightKg,
       note: note ?? this.note,
       phaseLabel: phaseLabel ?? this.phaseLabel,
+      frontPhotoPath: frontPhotoPath ?? this.frontPhotoPath,
+      sidePhotoPath: sidePhotoPath ?? this.sidePhotoPath,
+      backPhotoPath: backPhotoPath ?? this.backPhotoPath,
     );
   }
 }

@@ -179,7 +179,8 @@ class _StartPageState extends State<StartPage> {
   Future<void> _pickPhoto(PhotoAngle angle, ImageSource source) async {
     final photo = await _imagePicker.pickImage(
       source: source,
-      imageQuality: 85,
+      imageQuality: 70,
+      maxWidth: 1200,
     );
 
     if (photo == null) {
@@ -248,7 +249,10 @@ class _StartPageState extends State<StartPage> {
 
     try {
       await _persistSessions();
-      final saveResult = await _supabaseSessionService.insertSession(session);
+      final saveResult = await _supabaseSessionService.insertSession(
+        session,
+        photos: _photos,
+      );
       if (saveResult.isSynced && mounted) {
         setState(() {
           final sessionIndex = _sessions.indexOf(session);
@@ -268,7 +272,7 @@ class _StartPageState extends State<StartPage> {
         SnackBar(
           content: Text(
             saveResult.isSynced
-                ? 'تم حفظ التقرير في Supabase والسجل المحلي'
+                ? 'تم حفظ التقرير والصور في Supabase والسجل المحلي'
                 : saveResult.message!,
           ),
         ),

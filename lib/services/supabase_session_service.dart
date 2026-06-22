@@ -1,6 +1,10 @@
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/photo_angle.dart';
 import '../models/progress_session.dart';
+
+const _progressPhotosBucket = 'progress-photos';
 
 class SupabaseSaveResult {
   const SupabaseSaveResult.synced(this.session) : message = null;
@@ -51,7 +55,10 @@ class SupabaseSessionService {
         .toList();
   }
 
-  Future<SupabaseSaveResult> insertSession(ProgressSession session) async {
+  Future<SupabaseSaveResult> insertSession(
+    ProgressSession session, {
+    Map<PhotoAngle, XFile> photos = const {},
+  }) async {
     try {
       final isReady = await ensureReady();
       if (!isReady) {
@@ -60,9 +67,19 @@ class SupabaseSessionService {
         );
       }
 
+      final photoPaths = photos.isEmpty
+          ? const <PhotoAngle, String>{}
+          : await _uploadSessionPhotos(session, photos);
+
       final row = await _supabaseClient
           .from('progress_sessions')
-          .insert(session.toSupabaseInsert())
+          .insert(
+            session.toSupabaseInsert(
+              frontPhotoPath: photoPaths[PhotoAngle.front],
+              sidePhotoPath: photoPaths[PhotoAngle.side],
+              backPhotoPath: photoPaths[PhotoAngle.back],
+            ),
+          )
           .select()
           .single();
 
@@ -84,11 +101,95 @@ class SupabaseSessionService {
     }
   }
 
+  Future<Map<PhotoAngle, String>> _uploadSessionPhotos(
+    ProgressSession session,
+    Map<PhotoAngle, XFile> photos,
+  ) async {
+    final userId = _supabaseClient.auth.currentUser?.id;
+    if (userId == null) {
+      throw const AuthException('Missing authenticated user');
+    }
+
+    final sessionFolder = session.createdAt.microsecondsSinceEpoch.toString();
+    final paths = <PhotoAngle, String>{};
+
+    for (final entry in photos.entries) {
+      final bytes = await entry.value.readAsBytes();
+      final extension = _extensionFor(entry.value);
+      final path = '$userId/$sessionFolder/${entry.key.storageName}$extension';
+
+      await _supabaseClient.storage
+          .from(_progressPhotosBucket)
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: entry.value.mimeType ?? _contentTypeFor(extension),
+              upsert: true,
+            ),
+          );
+
+      paths[entry.key] = path;
+    }
+
+    return paths;
+  }
+
+  String _extensionFor(XFile photo) {
+    final name = photo.name.toLowerCase();
+    if (name.endsWith('.png')) {
+      return '.png';
+    }
+    if (name.endsWith('.webp')) {
+      return '.webp';
+    }
+
+    return '.jpg';
+  }
+
+  String _contentTypeFor(String extension) {
+    return switch (extension) {
+      '.png' => 'image/png',
+      '.webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+  }
+
+  Future<List<String>> createSignedPhotoUrls(ProgressSession session) async {
+    final urlsByAngle = await createSignedPhotoUrlsByAngle(session);
+    return urlsByAngle.values.toList();
+  }
+
+  Future<Map<String, String>> createSignedPhotoUrlsByAngle(
+    ProgressSession session,
+  ) async {
+    try {
+      final isReady = await ensureReady();
+      if (!isReady || !session.hasPhotoPaths) {
+        return const {};
+      }
+
+      final urls = <String, String>{};
+      for (final entry in session.photoPathsByAngle.entries) {
+        final signedUrl = await _supabaseClient.storage
+            .from(_progressPhotosBucket)
+            .createSignedUrl(entry.value, 60 * 30);
+        urls[entry.key] = signedUrl;
+      }
+
+      return urls;
+    } on Object {
+      return const {};
+    }
+  }
+
   Future<void> deleteSession(ProgressSession session) async {
     final isReady = await ensureReady();
     if (!isReady || session.id == null) {
       return;
     }
+
+    await _deleteSessionPhotos(session);
 
     await _supabaseClient
         .from('progress_sessions')
@@ -107,9 +208,24 @@ class SupabaseSessionService {
       return;
     }
 
+    final sessions = await fetchSessions();
+    for (final session in sessions) {
+      await _deleteSessionPhotos(session);
+    }
+
     await _supabaseClient
         .from('progress_sessions')
         .delete()
         .eq('user_id', userId);
+  }
+
+  Future<void> _deleteSessionPhotos(ProgressSession session) async {
+    if (!session.hasPhotoPaths) {
+      return;
+    }
+
+    await _supabaseClient.storage
+        .from(_progressPhotosBucket)
+        .remove(session.photoPaths);
   }
 }
