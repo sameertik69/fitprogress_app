@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/photo_angle.dart';
 import '../models/progress_session.dart';
 import '../services/session_storage.dart';
+import '../services/supabase_session_service.dart';
 import '../widgets/analysis_loading_section.dart';
 import '../widgets/intro_section.dart';
 import '../widgets/photo_capture_section.dart';
@@ -25,6 +26,7 @@ class StartPage extends StatefulWidget {
 class _StartPageState extends State<StartPage> {
   final _imagePicker = ImagePicker();
   final _sessionStorage = createSessionStorage();
+  final _supabaseSessionService = SupabaseSessionService();
   final _weightController = TextEditingController();
   final _phaseController = TextEditingController();
   final _noteController = TextEditingController();
@@ -51,6 +53,11 @@ class _StartPageState extends State<StartPage> {
   }
 
   Future<void> _loadSessions() async {
+    await _loadLocalSessions();
+    await _syncSessionsFromSupabase();
+  }
+
+  Future<void> _loadLocalSessions() async {
     final encodedSessions = await _sessionStorage.read(_sessionsStorageKey);
     final loadedSessions = <ProgressSession>[];
 
@@ -92,6 +99,25 @@ class _StartPageState extends State<StartPage> {
         ..clear()
         ..addAll(loadedSessions);
     });
+  }
+
+  Future<void> _syncSessionsFromSupabase() async {
+    try {
+      final remoteSessions = await _supabaseSessionService.fetchSessions();
+      if (!mounted || remoteSessions.isEmpty) {
+        return;
+      }
+
+      setState(() {
+        _sessions
+          ..clear()
+          ..addAll(remoteSessions);
+      });
+
+      await _persistSessions();
+    } on Object {
+      return;
+    }
   }
 
   Future<void> _persistSessions() async {
@@ -222,6 +248,31 @@ class _StartPageState extends State<StartPage> {
 
     try {
       await _persistSessions();
+      final saveResult = await _supabaseSessionService.insertSession(session);
+      if (saveResult.isSynced && mounted) {
+        setState(() {
+          final sessionIndex = _sessions.indexOf(session);
+          if (sessionIndex != -1) {
+            _sessions[sessionIndex] = saveResult.session!;
+            _currentReport = saveResult.session;
+          }
+        });
+        await _persistSessions();
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            saveResult.isSynced
+                ? 'تم حفظ التقرير في Supabase والسجل المحلي'
+                : saveResult.message!,
+          ),
+        ),
+      );
     } on Object {
       if (!mounted) {
         return;
@@ -240,13 +291,7 @@ class _StartPageState extends State<StartPage> {
       return;
     }
 
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم حفظ التقرير في سجل الجلسات')),
-    );
+    return;
   }
 
   void _editPhotos() {
@@ -294,6 +339,7 @@ class _StartPageState extends State<StartPage> {
 
     try {
       await _persistSessions();
+      await _supabaseSessionService.deleteSession(session);
     } on Object {
       if (!mounted) {
         return;
@@ -334,6 +380,7 @@ class _StartPageState extends State<StartPage> {
 
     try {
       await _persistSessions();
+      await _supabaseSessionService.clearSessions();
     } on Object {
       if (!mounted) {
         return;
