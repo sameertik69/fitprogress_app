@@ -3,8 +3,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../models/analysis_request.dart';
 import '../models/photo_angle.dart';
+import '../models/photo_readiness_report.dart';
 import '../models/progress_session.dart';
+import '../services/photo_readiness_service.dart';
+import '../services/progress_analysis_service.dart';
 import '../services/session_storage.dart';
 import '../services/supabase_session_service.dart';
 import '../widgets/analysis_loading_section.dart';
@@ -25,6 +29,8 @@ class StartPage extends StatefulWidget {
 
 class _StartPageState extends State<StartPage> {
   final _imagePicker = ImagePicker();
+  final _analysisService = const ProgressAnalysisService();
+  final _photoReadinessService = const PhotoReadinessService();
   final _sessionStorage = createSessionStorage();
   final _supabaseSessionService = SupabaseSessionService();
   final _weightController = TextEditingController();
@@ -32,6 +38,7 @@ class _StartPageState extends State<StartPage> {
   final _noteController = TextEditingController();
   final Map<PhotoAngle, XFile> _photos = {};
   final List<ProgressSession> _sessions = [];
+  PhotoReadinessReport? _photoReadinessReport;
   ProgressSession? _currentReport;
   bool _isAnalyzing = false;
   bool _showReport = false;
@@ -194,15 +201,30 @@ class _StartPageState extends State<StartPage> {
       _currentReportSaved = false;
       _currentReport = null;
     });
+
+    await _refreshPhotoReadiness();
   }
 
-  void _removePhoto(PhotoAngle angle) {
+  Future<void> _removePhoto(PhotoAngle angle) async {
     setState(() {
       _photos.remove(angle);
       _isAnalyzing = false;
       _showReport = false;
       _currentReportSaved = false;
       _currentReport = null;
+    });
+
+    await _refreshPhotoReadiness();
+  }
+
+  Future<void> _refreshPhotoReadiness() async {
+    final report = await _photoReadinessService.assess(_photos);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _photoReadinessReport = report;
     });
   }
 
@@ -214,7 +236,16 @@ class _StartPageState extends State<StartPage> {
       _currentReport = null;
     });
 
-    await Future<void>.delayed(const Duration(seconds: 2));
+    final analysisResult = await _analysisService.analyze(
+      AnalysisRequest(
+        photos: _photos,
+        previousSessions: _sessions,
+        weightKg: _parseWeight(_weightController.text),
+        phaseLabel: _phaseController.text.trim(),
+        note: _noteController.text.trim(),
+        readinessReport: _photoReadinessReport,
+      ),
+    );
 
     if (!mounted) {
       return;
@@ -223,7 +254,7 @@ class _StartPageState extends State<StartPage> {
     setState(() {
       _isAnalyzing = false;
       _showReport = true;
-      _currentReport = _createDraftSession();
+      _currentReport = _analysisService.createSessionFromResult(analysisResult);
     });
   }
 
@@ -232,7 +263,11 @@ class _StartPageState extends State<StartPage> {
       return;
     }
 
-    final draftReport = _currentReport ?? _createDraftSession();
+    final draftReport = _currentReport;
+    if (draftReport == null) {
+      return;
+    }
+
     final session = draftReport.copyWith(
       createdAt: DateTime.now(),
       weightKg: _parseWeight(_weightController.text),
@@ -305,6 +340,7 @@ class _StartPageState extends State<StartPage> {
       _currentReportSaved = false;
       _showComparison = false;
       _currentReport = null;
+      _photoReadinessReport = null;
     });
   }
 
@@ -411,44 +447,6 @@ class _StartPageState extends State<StartPage> {
     ).showSnackBar(const SnackBar(content: Text('تم مسح السجل')));
   }
 
-  ProgressSession _createDraftSession() {
-    final sessionNumber = _sessions.length + 1;
-    final visualScore = (70 + sessionNumber * 3).clamp(70, 92).toInt();
-    final postureScore = (79 + (_photos.length * 2) + sessionNumber)
-        .clamp(78, 95)
-        .toInt();
-    final shoulderWaistChange = 3.4 + sessionNumber * 0.7;
-    final confidence = postureScore >= 88
-        ? 'مرتفع'
-        : postureScore >= 82
-        ? 'متوسط'
-        : 'بحاجة لتحسين';
-    final symmetryLabel = visualScore >= 84
-        ? 'ممتاز'
-        : visualScore >= 76
-        ? 'جيد'
-        : 'مقبول';
-    final comparabilityLabel = postureScore >= 86
-        ? 'قوية'
-        : postureScore >= 81
-        ? 'مقبولة'
-        : 'ضعيفة';
-
-    return ProgressSession(
-      createdAt: DateTime.now(),
-      visualScore: visualScore,
-      confidence: confidence,
-      postureScore: postureScore,
-      symmetryLabel: symmetryLabel,
-      comparabilityLabel: comparabilityLabel,
-      shoulderWaistChange: double.parse(shoulderWaistChange.toStringAsFixed(1)),
-      summary:
-          'الجلسة رقم $sessionNumber تظهر قراءة بصرية $symmetryLabel مع قابلية مقارنة $comparabilityLabel. ثبات الصور يؤثر مباشرة على دقة متابعة تطور الجسم والعضلات.',
-      recommendation:
-          'للجلسة القادمة حافظ على نفس المسافة والإضاءة والوقفة، واكتب الوزن أو مرحلة التمرين حتى تصبح المقارنة أوضح.',
-    );
-  }
-
   double? _parseWeight(String value) {
     final normalizedValue = value.trim().replaceAll(',', '.');
     if (normalizedValue.isEmpty) {
@@ -472,6 +470,7 @@ class _StartPageState extends State<StartPage> {
               const SizedBox(height: 28),
               PhotoCaptureSection(
                 photos: _photos,
+                readinessReport: _photoReadinessReport,
                 onPickPhoto: _choosePhotoSource,
                 onRemovePhoto: _removePhoto,
               ),
@@ -488,7 +487,7 @@ class _StartPageState extends State<StartPage> {
               if (_showReport) ...[
                 const SizedBox(height: 24),
                 ProgressReportSection(
-                  session: _currentReport ?? _createDraftSession(),
+                  session: _currentReport!,
                   isSaved: _currentReportSaved,
                   weightController: _weightController,
                   phaseController: _phaseController,

@@ -4,16 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/photo_angle.dart';
+import '../models/photo_readiness_report.dart';
 
 class PhotoCaptureSection extends StatelessWidget {
   const PhotoCaptureSection({
     required this.photos,
+    required this.readinessReport,
     required this.onPickPhoto,
     required this.onRemovePhoto,
     super.key,
   });
 
   final Map<PhotoAngle, XFile> photos;
+  final PhotoReadinessReport? readinessReport;
   final ValueChanged<PhotoAngle> onPickPhoto;
   final ValueChanged<PhotoAngle> onRemovePhoto;
 
@@ -66,7 +69,68 @@ class PhotoCaptureSection extends StatelessWidget {
           onPickPhoto: onPickPhoto,
           onRemovePhoto: onRemovePhoto,
         ),
+        if (readinessReport != null) ...[
+          const SizedBox(height: 12),
+          PhotoReadinessCard(report: readinessReport!),
+        ],
       ],
+    );
+  }
+}
+
+class PhotoReadinessCard extends StatelessWidget {
+  const PhotoReadinessCard({required this.report, super.key});
+
+  final PhotoReadinessReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final icon = switch (report.level) {
+      PhotoReadinessLevel.incomplete => Icons.pending_outlined,
+      PhotoReadinessLevel.ready => Icons.check_circle_outline,
+      PhotoReadinessLevel.attention => Icons.info_outline,
+    };
+    final color = switch (report.level) {
+      PhotoReadinessLevel.incomplete => colorScheme.onSurfaceVariant,
+      PhotoReadinessLevel.ready => colorScheme.primary,
+      PhotoReadinessLevel.attention => colorScheme.tertiary,
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  report.title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${report.message} الحجم التقريبي: ${report.totalSizeLabel}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
