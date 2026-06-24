@@ -14,6 +14,7 @@ import '../services/supabase_session_service.dart';
 import '../widgets/analysis_loading_section.dart';
 import '../widgets/intro_section.dart';
 import '../widgets/photo_capture_section.dart';
+import '../widgets/progress_trend_section.dart';
 import '../widgets/progress_report_section.dart';
 import '../widgets/session_history_section.dart';
 import '../widgets/start_button.dart';
@@ -500,6 +501,8 @@ class _StartPageState extends State<StartPage> {
                 ),
               ],
               if (_sessions.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                ProgressTrendSection(sessions: _sessions),
                 const SizedBox(height: 24),
                 SessionHistorySection(
                   sessions: _sessions,

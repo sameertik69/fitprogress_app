@@ -3,6 +3,7 @@ import '../models/analysis_result.dart';
 import '../models/photo_readiness_report.dart';
 import '../models/progress_session.dart';
 import 'analysis_config.dart';
+import 'ai_analysis_provider.dart';
 
 abstract class AnalysisEngine {
   const AnalysisEngine();
@@ -11,9 +12,13 @@ abstract class AnalysisEngine {
 }
 
 class ProgressAnalysisService {
-  const ProgressAnalysisService({this.mode = analysisMode});
+  const ProgressAnalysisService({
+    this.mode = analysisMode,
+    this.aiProvider = const EdgeFunctionAiAnalysisProvider(),
+  });
 
   final AnalysisMode mode;
+  final AiAnalysisProvider aiProvider;
 
   Future<AnalysisResult> analyze(AnalysisRequest request) {
     return _engine.analyze(request);
@@ -22,7 +27,7 @@ class ProgressAnalysisService {
   AnalysisEngine get _engine {
     return switch (mode) {
       AnalysisMode.mock => const MockAnalysisEngine(),
-      AnalysisMode.ai => const AiAnalysisEngine(),
+      AnalysisMode.ai => AiAnalysisEngine(aiProvider),
     };
   }
 
@@ -93,12 +98,12 @@ class MockAnalysisEngine extends AnalysisEngine {
 }
 
 class AiAnalysisEngine extends AnalysisEngine {
-  const AiAnalysisEngine();
+  const AiAnalysisEngine(this.provider);
+
+  final AiAnalysisProvider provider;
 
   @override
   Future<AnalysisResult> analyze(AnalysisRequest request) {
-    throw UnimplementedError(
-      'AI analysis is prepared but not connected to a provider yet.',
-    );
+    return provider.analyze(request);
   }
 }

@@ -1,102 +1,110 @@
 # FitProgress AI
 
-FitProgress AI is a Flutter MVP for tracking body progress through standardized progress photos.
+FitProgress AI is a Flutter MVP for tracking body-shape progress from periodic photo sessions. The app focuses on visual progress, posture consistency, muscle-development signals, and session-to-session comparison.
 
-The current goal is to build the app step by step, test each stage, and keep the workflow simple before adding backend, authentication, storage, or real analysis.
+The current product is designed to stay portable across web, Android, and iOS. Platform-specific work should keep shared logic in Flutter/Dart and avoid browser-only assumptions unless they are isolated.
 
 ## Current Status
 
-The app currently runs as a local Flutter Web prototype.
+- Arabic-first single-page Flutter experience.
+- Front, side, and back progress photo inputs.
+- Photo readiness checks for pose stability, image clarity, and comparison quality.
+- Mock analysis engine for visual progress, confidence, summary, recommendations, and warnings.
+- AI-ready analysis service interface with a Supabase Edge Function provider path.
+- Local persistence so sessions survive refreshes.
+- Supabase persistence for `progress_sessions`.
+- Supabase Storage support for progress photos instead of storing large image payloads in the database.
+- Session history, session details, delete, and clear-history flows.
+- Previous-session comparison support.
+- Unit tests for local storage, Supabase mapping, photo readiness, and analysis behavior.
 
-Implemented so far:
+## Run Locally
 
-- A clean first screen for body progress tracking.
-- Arabic RTL interface.
-- Three required progress photo slots:
-  - Front photo
-  - Side photo
-  - Back photo
-- Image selection from the device using `image_picker`.
-- Preview for each selected photo.
-- Disabled scan button until all three photos are selected.
-- A demo progress report after pressing the scan button.
-- Safe product wording:
-  - visual progress estimate
-  - confidence score
-  - posture consistency
-  - ratio change
-- Clear warning that results are visual estimates, not medical measurements or exact muscle mass measurement.
+Install dependencies:
 
-## Demo Report
-
-The current report is mock/demo data only. It shows:
-
-- Visual progress estimate
-- Confidence score
-- Shoulder-to-waist ratio change
-- Posture consistency score
-- A short summary explaining the result
-
-No real AI, pose detection, Supabase, or storage is connected yet.
-
-## How To Run
-
-Install Flutter, then run:
-
-```bash
+```powershell
 flutter pub get
-flutter run -d web-server --web-hostname 127.0.0.1 --web-port 53504
 ```
 
-Open:
+Run in Chrome during development:
+
+```powershell
+flutter run -d chrome
+```
+
+For mobile testing from another device on the same Wi-Fi, build web and serve the static files on the fixed app port:
+
+```powershell
+flutter build web --pwa-strategy=none --no-native-null-assertions --no-web-resources-cdn
+cd build\web
+py -3 -m http.server 53525 --bind 0.0.0.0
+```
+
+Then open:
 
 ```text
-http://127.0.0.1:53504
+http://YOUR_LAPTOP_IP:53525/
 ```
 
-You can also run with any available port:
+Using the same port helps keep existing browser/Supabase anonymous sessions stable.
 
-```bash
-flutter run -d web-server
+## Supabase Setup
+
+The app uses Supabase for remote session data and photo storage.
+
+Required project pieces:
+
+- Run `supabase/progress_sessions.sql` in the Supabase SQL editor.
+- Enable anonymous authentication in Supabase Auth.
+- Use the `progress-photos` storage bucket created by the SQL script.
+- Keep RLS policies enabled.
+
+The Flutter app uses only the Supabase URL and publishable key. Do not place service-role keys or AI provider secrets in Flutter.
+
+## AI Analysis Path
+
+The app currently defaults to mock analysis:
+
+```text
+ANALYSIS_MODE=mock
 ```
 
-## Checks
+To test the AI provider path later:
 
-Before pushing changes, run:
+```powershell
+flutter run -d chrome --dart-define=ANALYSIS_MODE=ai --dart-define=AI_ANALYSIS_FUNCTION=analyze-progress
+```
 
-```bash
+Deploy the Edge Function with:
+
+```powershell
+.\scripts\deploy-analyze-progress.ps1
+```
+
+The current Edge Function is a safe placeholder that returns an AI-shaped mock result. Real provider calls should happen only inside the Supabase Edge Function, with secrets configured through Supabase:
+
+```powershell
+supabase secrets set OPENAI_API_KEY=your_key_here
+```
+
+## Quality Checks
+
+Run these before pushing:
+
+```powershell
 flutter analyze
 flutter test
+flutter build web --pwa-strategy=none --no-native-null-assertions --no-web-resources-cdn
 ```
 
-Both checks passed at the current stage.
+## Product Notes
 
-## Next Steps
+FitProgress AI provides visual estimates and trend guidance. It is not a medical tool, not a diagnostic system, and not an exact body-composition measurement device.
 
-Planned work:
+## Next Work
 
-- Improve the photo selection UX.
-- Add a dedicated scan/loading state.
-- Move the demo report into a cleaner report screen or section.
-- Add basic photo quality guidance.
-- Add camera capture support.
-- Add local session state.
-- Add Supabase Auth later.
-- Add Supabase Storage for uploaded photos.
-- Add Supabase Database tables for progress sessions.
-- Add pose landmark extraction.
-- Add real image-based comparison logic.
-- Add timeline/history for previous sessions.
-
-## Important Product Note
-
-This app must not claim exact muscle mass measurement.
-
-Use wording such as:
-
-- visual progress estimate
-- image-based comparison
-- body ratio change
-- confidence score
-
-Avoid wording that suggests medical diagnosis, body composition accuracy, or exact muscle measurement.
+- Replace the Edge Function placeholder with a real AI provider call.
+- Add stronger QA scenarios for web, Android, and iOS.
+- Improve multi-session trend charts.
+- Add account/session recovery behavior when users switch devices or origins.
+- Polish production hosting and environment configuration.

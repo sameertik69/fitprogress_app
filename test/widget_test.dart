@@ -57,7 +57,8 @@ void main() {
     );
 
     expect(find.text('سجل الجلسات'), findsOneWidget);
-    expect(find.text('78%'), findsOneWidget);
+    expect(find.text('اتجاه التطور'), findsOneWidget);
+    expect(find.text('جلسة 2026/6/21 - 12:00'), findsOneWidget);
     expect(find.text('تنشيف'), findsOneWidget);
   });
 
@@ -120,12 +121,12 @@ void main() {
     await tester.pumpWidget(const FitProgressApp());
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('78%'),
+      find.text('جلسة 2026/6/21 - 12:00'),
       500,
       scrollable: find.byType(Scrollable),
     );
 
-    await tester.tap(find.text('78%'));
+    await tester.tap(find.text('جلسة 2026/6/21 - 12:00'));
     await tester.pumpAndSettle();
 
     expect(find.text('تفاصيل الجلسة'), findsOneWidget);
@@ -166,7 +167,7 @@ void main() {
     await tester.pumpWidget(const FitProgressApp());
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('81%'),
+      find.text('جلسة 2026/6/21 - 13:00'),
       500,
       scrollable: find.byType(Scrollable),
     );
@@ -177,6 +178,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('81%'), findsNothing);
-    expect(find.text('78%'), findsOneWidget);
+    expect(find.text('جلسة 2026/6/21 - 12:00'), findsOneWidget);
   });
 }
