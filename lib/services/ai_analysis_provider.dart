@@ -67,6 +67,7 @@ class AiAnalysisPayloadBuilder {
         'weightKg': request.weightKg,
         'phaseLabel': request.phaseLabel,
         'note': request.note,
+        'measurements': request.measurements.toJson(),
       },
       'readiness': request.readinessReport == null
           ? null
@@ -116,6 +117,7 @@ class AiAnalysisPayloadBuilder {
       'weightKg': session.weightKg,
       'phaseLabel': session.phaseLabel,
       'note': session.note,
+      'measurements': session.measurements.toJson(),
       'photoPathsByAngle': session.photoPathsByAngle,
     };
   }

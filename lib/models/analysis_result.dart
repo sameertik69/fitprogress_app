@@ -1,3 +1,5 @@
+import 'muscle_metric.dart';
+
 class AnalysisResult {
   const AnalysisResult({
     required this.visualScore,
@@ -8,6 +10,7 @@ class AnalysisResult {
     required this.comparabilityLabel,
     required this.shoulderWaistChange,
     required this.recommendation,
+    this.muscleMetrics = defaultMuscleMetrics,
   });
 
   final int visualScore;
@@ -18,4 +21,5 @@ class AnalysisResult {
   final String comparabilityLabel;
   final double shoulderWaistChange;
   final String recommendation;
+  final List<MuscleMetric> muscleMetrics;
 }

@@ -1,4 +1,5 @@
 import 'analysis_result.dart';
+import 'muscle_metric.dart';
 
 class AiAnalysisResponse {
   const AiAnalysisResponse({
@@ -10,6 +11,7 @@ class AiAnalysisResponse {
     required this.comparabilityLabel,
     required this.shoulderWaistChange,
     required this.recommendation,
+    required this.muscleMetrics,
   });
 
   final int visualScore;
@@ -20,6 +22,7 @@ class AiAnalysisResponse {
   final String comparabilityLabel;
   final double shoulderWaistChange;
   final String recommendation;
+  final List<MuscleMetric> muscleMetrics;
 
   factory AiAnalysisResponse.fromJson(Map<String, dynamic> json) {
     return AiAnalysisResponse(
@@ -31,6 +34,7 @@ class AiAnalysisResponse {
       comparabilityLabel: _text(json['comparabilityLabel']),
       shoulderWaistChange: _number(json['shoulderWaistChange']),
       recommendation: _text(json['recommendation']),
+      muscleMetrics: _muscleMetrics(json['muscleMetrics']),
     );
   }
 
@@ -44,7 +48,25 @@ class AiAnalysisResponse {
       comparabilityLabel: comparabilityLabel,
       shoulderWaistChange: shoulderWaistChange,
       recommendation: recommendation,
+      muscleMetrics: muscleMetrics,
     );
+  }
+
+  static List<MuscleMetric> _muscleMetrics(Object? value) {
+    if (value is! List) {
+      return defaultMuscleMetrics;
+    }
+
+    final metrics = <MuscleMetric>[];
+    for (final item in value) {
+      if (item is Map<String, dynamic>) {
+        metrics.add(MuscleMetric.fromJson(item));
+      } else if (item is Map) {
+        metrics.add(MuscleMetric.fromJson(Map<String, dynamic>.from(item)));
+      }
+    }
+
+    return metrics.isEmpty ? defaultMuscleMetrics : metrics;
   }
 
   static int _score(Object? value) {

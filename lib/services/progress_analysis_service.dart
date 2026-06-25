@@ -1,5 +1,6 @@
 import '../models/analysis_request.dart';
 import '../models/analysis_result.dart';
+import '../models/muscle_metric.dart';
 import '../models/photo_readiness_report.dart';
 import '../models/progress_session.dart';
 import 'analysis_config.dart';
@@ -42,6 +43,7 @@ class ProgressAnalysisService {
       comparabilityLabel: result.comparabilityLabel,
       shoulderWaistChange: result.shoulderWaistChange,
       recommendation: result.recommendation,
+      muscleMetrics: result.muscleMetrics,
     );
   }
 }
@@ -81,6 +83,11 @@ class MockAnalysisEngine extends AnalysisEngine {
         request.readinessReport?.level == PhotoReadinessLevel.attention
         ? ' هناك ملاحظة على حجم الصور أو جاهزيتها، لذلك يفضل تثبيت ظروف التصوير في الجلسة القادمة.'
         : '';
+    final muscleMetrics = _buildMuscleMetrics(
+      sessionNumber: sessionNumber,
+      visualScore: visualScore,
+      postureScore: postureScore,
+    );
 
     return AnalysisResult(
       visualScore: visualScore,
@@ -93,7 +100,60 @@ class MockAnalysisEngine extends AnalysisEngine {
           'الجلسة رقم $sessionNumber تظهر قراءة بصرية $symmetryLabel مع قابلية مقارنة $comparabilityLabel. ثبات الصور يؤثر مباشرة على دقة متابعة تطور الجسم والعضلات.$noteContext$readinessContext',
       recommendation:
           'للجلسة القادمة حافظ على نفس المسافة والإضاءة والوقفة، واكتب الوزن أو مرحلة التمرين حتى تصبح المقارنة أوضح.',
+      muscleMetrics: muscleMetrics,
     );
+  }
+
+  List<MuscleMetric> _buildMuscleMetrics({
+    required int sessionNumber,
+    required int visualScore,
+    required int postureScore,
+  }) {
+    final shoulderScore = (visualScore + 4).clamp(0, 100);
+    final chestScore = (visualScore + sessionNumber).clamp(0, 100);
+    final armsScore = (visualScore - 3 + sessionNumber).clamp(0, 100);
+    final coreScore = ((visualScore + postureScore) / 2).round().clamp(0, 100);
+
+    return [
+      MuscleMetric(
+        name: 'الأكتاف',
+        score: shoulderScore,
+        status: _statusFor(shoulderScore),
+        note: 'قراءة اتساع الجزء العلوي مقارنة بالخصر.',
+      ),
+      MuscleMetric(
+        name: 'الصدر',
+        score: chestScore,
+        status: _statusFor(chestScore),
+        note: 'تقدير امتلاء الصدر من الصورة الأمامية.',
+      ),
+      MuscleMetric(
+        name: 'الذراعين',
+        score: armsScore,
+        status: _statusFor(armsScore),
+        note: 'قراءة تقديرية تتأثر بزاوية الذراعين.',
+      ),
+      MuscleMetric(
+        name: 'الخصر والجذع',
+        score: coreScore,
+        status: _statusFor(coreScore),
+        note: 'يعتمد على ثبات الوقفة ونسبة الكتف إلى الخصر.',
+      ),
+    ];
+  }
+
+  String _statusFor(int score) {
+    if (score >= 85) {
+      return 'قوي';
+    }
+    if (score >= 76) {
+      return 'جيد';
+    }
+    if (score >= 68) {
+      return 'مقبول';
+    }
+
+    return 'بحاجة لمتابعة';
   }
 }
 

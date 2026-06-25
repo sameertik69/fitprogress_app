@@ -11,6 +11,12 @@ type AnalysisPayload = {
     weightKg?: number | null;
     phaseLabel?: string;
     note?: string;
+    measurements?: {
+      waistCm?: number | null;
+      chestCm?: number | null;
+      armCm?: number | null;
+      shoulderCm?: number | null;
+    };
   };
   readiness?: {
     level?: string;
@@ -50,6 +56,12 @@ function createMockAiResult(payload: AnalysisPayload) {
     payload.context?.note && payload.context.note.trim().length > 0
       ? " ملاحظتك أضيفت كسياق للتحليل."
       : "";
+  const muscleMetrics = [
+    muscleMetric("الأكتاف", visualScore + 4, "قراءة اتساع الجزء العلوي مقارنة بالخصر."),
+    muscleMetric("الصدر", visualScore + sessionNumber, "تقدير امتلاء الصدر من الصورة الأمامية."),
+    muscleMetric("الذراعين", visualScore - 2 + sessionNumber, "قراءة تقديرية تتأثر بزاوية الذراعين."),
+    muscleMetric("الخصر والجذع", Math.round((visualScore + postureScore) / 2), "يعتمد على ثبات الوقفة ونسبة الكتف إلى الخصر."),
+  ];
 
   return {
     visualScore,
@@ -62,11 +74,29 @@ function createMockAiResult(payload: AnalysisPayload) {
     shoulderWaistChange: Number((3.8 + sessionNumber * 0.8).toFixed(1)),
     recommendation:
       "حافظ على نفس الإضاءة والمسافة والوقفة في الجلسة القادمة لتحسين دقة المقارنة.",
+    muscleMetrics,
   };
 }
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
+}
+
+function muscleMetric(name: string, score: number, note: string) {
+  const normalizedScore = clamp(score, 0, 100);
+  return {
+    name,
+    score: normalizedScore,
+    status: statusFor(normalizedScore),
+    note,
+  };
+}
+
+function statusFor(score: number) {
+  if (score >= 85) return "قوي";
+  if (score >= 76) return "جيد";
+  if (score >= 68) return "مقبول";
+  return "بحاجة لمتابعة";
 }
 
 function json(body: unknown, status = 200) {

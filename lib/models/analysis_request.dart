@@ -1,5 +1,6 @@
 import 'package:image_picker/image_picker.dart';
 
+import 'body_measurements.dart';
 import 'photo_angle.dart';
 import 'photo_readiness_report.dart';
 import 'progress_session.dart';
@@ -14,6 +15,7 @@ class AnalysisRequest {
     this.phaseLabel = '',
     this.note = '',
     this.readinessReport,
+    this.measurements = const BodyMeasurements(),
   });
 
   final Map<PhotoAngle, XFile> photos;
@@ -22,4 +24,5 @@ class AnalysisRequest {
   final String phaseLabel;
   final String note;
   final PhotoReadinessReport? readinessReport;
+  final BodyMeasurements measurements;
 }

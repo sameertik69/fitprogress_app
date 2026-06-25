@@ -51,6 +51,22 @@ void main() {
     await tester.pumpWidget(const FitProgressApp());
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
+      find.text('جاهزية البيانات'),
+      500,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('جاهزية البيانات'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('خطة الجلسة القادمة'),
+      500,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('خطة الجلسة القادمة'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
       find.text('سجل الجلسات'),
       500,
       scrollable: find.byType(Scrollable),
@@ -58,6 +74,8 @@ void main() {
 
     expect(find.text('سجل الجلسات'), findsOneWidget);
     expect(find.text('اتجاه التطور'), findsOneWidget);
+    expect(find.text('الكل'), findsOneWidget);
+    expect(find.text('قياسات'), findsOneWidget);
     expect(find.text('جلسة 2026/6/21 - 12:00'), findsOneWidget);
     expect(find.text('تنشيف'), findsOneWidget);
   });
@@ -114,6 +132,12 @@ void main() {
           'weightKg': 82.5,
           'phaseLabel': 'تنشيف',
           'note': 'التزام عالي هذا الأسبوع',
+          'measurements': {
+            'waistCm': 82,
+            'chestCm': 104,
+            'armCm': 36,
+            'shoulderCm': 118,
+          },
         },
       ]),
     });
@@ -132,6 +156,55 @@ void main() {
     expect(find.text('تفاصيل الجلسة'), findsOneWidget);
     expect(find.text('82.5 kg'), findsOneWidget);
     expect(find.text('التزام عالي هذا الأسبوع'), findsOneWidget);
+    expect(find.text('القياسات اليدوية'), findsOneWidget);
+    expect(find.text('الخصر 82.0 cm'), findsOneWidget);
+    expect(find.text('تطور العضلات'), findsOneWidget);
+    expect(find.text('الأكتاف'), findsOneWidget);
+    expect(find.text('تصدير التقرير'), findsOneWidget);
+  });
+
+  testWidgets('filters history by measurements', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({
+      'fitprogress_sessions': jsonEncode([
+        {
+          'createdAt': DateTime(2026, 6, 21, 13).toIso8601String(),
+          'visualScore': 81,
+          'confidence': 'مرتفع',
+          'postureScore': 88,
+          'summary': 'جلسة بقياسات',
+          'symmetryLabel': 'ممتاز',
+          'comparabilityLabel': 'قوية',
+          'shoulderWaistChange': 6.1,
+          'recommendation': 'استمر',
+          'measurements': {'waistCm': 82},
+        },
+        {
+          'createdAt': DateTime(2026, 6, 21, 12).toIso8601String(),
+          'visualScore': 78,
+          'confidence': 'متوسط',
+          'postureScore': 83,
+          'summary': 'جلسة بدون قياسات',
+          'symmetryLabel': 'جيد',
+          'comparabilityLabel': 'مقبولة',
+          'shoulderWaistChange': 5.2,
+          'recommendation': 'حافظ على نفس ظروف التصوير',
+        },
+      ]),
+    });
+
+    await tester.pumpWidget(const FitProgressApp());
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('قياسات'),
+      500,
+      scrollable: find.byType(Scrollable),
+    );
+
+    await tester.tap(find.text('قياسات'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('جلسة 2026/6/21 - 13:00'), findsOneWidget);
+    expect(find.text('جلسة 2026/6/21 - 12:00'), findsNothing);
   });
 
   testWidgets('deletes one session and keeps the other', (
@@ -149,6 +222,14 @@ void main() {
           'comparabilityLabel': 'قوية',
           'shoulderWaistChange': 6.1,
           'recommendation': 'استمر',
+          'muscleMetrics': [
+            {
+              'name': 'الأكتاف',
+              'score': 82,
+              'status': 'جيد',
+              'note': 'تحسن واضح',
+            },
+          ],
         },
         {
           'createdAt': DateTime(2026, 6, 21, 12).toIso8601String(),
@@ -160,6 +241,14 @@ void main() {
           'comparabilityLabel': 'مقبولة',
           'shoulderWaistChange': 5.2,
           'recommendation': 'حافظ على نفس ظروف التصوير',
+          'muscleMetrics': [
+            {
+              'name': 'الأكتاف',
+              'score': 76,
+              'status': 'جيد',
+              'note': 'قراءة سابقة',
+            },
+          ],
         },
       ]),
     });
@@ -179,5 +268,69 @@ void main() {
 
     expect(find.text('81%'), findsNothing);
     expect(find.text('جلسة 2026/6/21 - 12:00'), findsOneWidget);
+  });
+
+  testWidgets('shows muscle differences in session comparison', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'fitprogress_sessions': jsonEncode([
+        {
+          'createdAt': DateTime(2026, 6, 21, 13).toIso8601String(),
+          'visualScore': 81,
+          'confidence': 'مرتفع',
+          'postureScore': 88,
+          'summary': 'جلسة أحدث',
+          'symmetryLabel': 'ممتاز',
+          'comparabilityLabel': 'قوية',
+          'shoulderWaistChange': 6.1,
+          'recommendation': 'استمر',
+          'muscleMetrics': [
+            {
+              'name': 'الأكتاف',
+              'score': 82,
+              'status': 'جيد',
+              'note': 'تحسن واضح',
+            },
+          ],
+        },
+        {
+          'createdAt': DateTime(2026, 6, 21, 12).toIso8601String(),
+          'visualScore': 78,
+          'confidence': 'متوسط',
+          'postureScore': 83,
+          'summary': 'جلسة أقدم',
+          'symmetryLabel': 'جيد',
+          'comparabilityLabel': 'مقبولة',
+          'shoulderWaistChange': 5.2,
+          'recommendation': 'حافظ على نفس ظروف التصوير',
+          'muscleMetrics': [
+            {
+              'name': 'الأكتاف',
+              'score': 76,
+              'status': 'جيد',
+              'note': 'قراءة سابقة',
+            },
+          ],
+        },
+      ]),
+    });
+
+    await tester.pumpWidget(const FitProgressApp());
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('مقارنة آخر جلستين'),
+      500,
+      scrollable: find.byType(Scrollable),
+    );
+
+    await tester.tap(find.text('مقارنة آخر جلستين'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('فرق العضلات'), findsOneWidget);
+    expect(find.text('من 76% إلى 82%'), findsOneWidget);
+    expect(find.text('+6%'), findsOneWidget);
+    expect(find.text('ملخص العضلات'), findsOneWidget);
+    expect(find.text('أفضل تحسن: الأكتاف (+6%).'), findsOneWidget);
   });
 }

@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../models/muscle_metric.dart';
 import '../models/photo_angle.dart';
 import '../models/progress_session.dart';
 import '../services/supabase_session_service.dart';
+import 'muscle_breakdown_section.dart';
+import 'session_report_export_sheet.dart';
 
-class SessionHistorySection extends StatelessWidget {
+enum SessionHistoryFilter { all, withMeasurements, withPhotos }
+
+class SessionHistorySection extends StatefulWidget {
   const SessionHistorySection({
     required this.sessions,
     required this.showComparison,
@@ -21,7 +26,30 @@ class SessionHistorySection extends StatelessWidget {
   final VoidCallback onClearSessions;
 
   @override
+  State<SessionHistorySection> createState() => _SessionHistorySectionState();
+}
+
+class _SessionHistorySectionState extends State<SessionHistorySection> {
+  SessionHistoryFilter _filter = SessionHistoryFilter.all;
+
+  List<ProgressSession> get _filteredSessions {
+    return switch (_filter) {
+      SessionHistoryFilter.all => widget.sessions,
+      SessionHistoryFilter.withMeasurements =>
+        widget.sessions
+            .where((session) => session.measurements.hasAny)
+            .toList(growable: false),
+      SessionHistoryFilter.withPhotos =>
+        widget.sessions
+            .where((session) => session.hasPhotoPaths)
+            .toList(growable: false),
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final filteredSessions = _filteredSessions;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -41,7 +69,7 @@ class SessionHistorySection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
-          onPressed: onClearSessions,
+          onPressed: widget.onClearSessions,
           icon: const Icon(Icons.delete_sweep_outlined),
           label: const Text('مسح السجل'),
           style: OutlinedButton.styleFrom(
@@ -52,12 +80,21 @@ class SessionHistorySection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        if (sessions.length >= 2) ...[
+        SessionHistoryFilterBar(
+          selectedFilter: _filter,
+          onChanged: (filter) {
+            setState(() {
+              _filter = filter;
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+        if (widget.sessions.length >= 2) ...[
           OutlinedButton.icon(
-            onPressed: onToggleComparison,
+            onPressed: widget.onToggleComparison,
             icon: const Icon(Icons.compare_arrows),
             label: Text(
-              showComparison ? 'إخفاء المقارنة' : 'مقارنة آخر جلستين',
+              widget.showComparison ? 'إخفاء المقارنة' : 'مقارنة آخر جلستين',
             ),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
@@ -67,19 +104,86 @@ class SessionHistorySection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          if (showComparison) ...[
-            SessionComparisonCard(current: sessions[0], previous: sessions[1]),
+          if (widget.showComparison) ...[
+            SessionComparisonCard(
+              current: widget.sessions[0],
+              previous: widget.sessions[1],
+            ),
             const SizedBox(height: 12),
           ],
         ],
-        for (final session in sessions) ...[
+        if (filteredSessions.isEmpty) ...[
+          const EmptyFilteredHistoryMessage(),
+          const SizedBox(height: 10),
+        ],
+        for (final session in filteredSessions) ...[
           SessionHistoryTile(
             session: session,
-            onDelete: () => onDeleteSession(session),
+            onDelete: () => widget.onDeleteSession(session),
           ),
           const SizedBox(height: 10),
         ],
       ],
+    );
+  }
+}
+
+class SessionHistoryFilterBar extends StatelessWidget {
+  const SessionHistoryFilterBar({
+    required this.selectedFilter,
+    required this.onChanged,
+    super.key,
+  });
+
+  final SessionHistoryFilter selectedFilter;
+  final ValueChanged<SessionHistoryFilter> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<SessionHistoryFilter>(
+      segments: const [
+        ButtonSegment(
+          value: SessionHistoryFilter.all,
+          label: Text('الكل'),
+          icon: Icon(Icons.list),
+        ),
+        ButtonSegment(
+          value: SessionHistoryFilter.withMeasurements,
+          label: Text('قياسات'),
+          icon: Icon(Icons.straighten),
+        ),
+        ButtonSegment(
+          value: SessionHistoryFilter.withPhotos,
+          label: Text('صور'),
+          icon: Icon(Icons.photo_library_outlined),
+        ),
+      ],
+      selected: {selectedFilter},
+      onSelectionChanged: (selection) => onChanged(selection.first),
+      showSelectedIcon: false,
+    );
+  }
+}
+
+class EmptyFilteredHistoryMessage extends StatelessWidget {
+  const EmptyFilteredHistoryMessage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        'لا توجد جلسات تطابق هذا الفلتر.',
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+      ),
     );
   }
 }
@@ -152,6 +256,11 @@ class SessionComparisonCard extends StatelessWidget {
             const Divider(height: 22),
             ComparisonRow(label: 'فرق الوزن المسجل', value: weightLabel),
           ],
+          const SizedBox(height: 16),
+          MuscleComparisonSection(
+            currentMetrics: current.muscleMetrics,
+            previousMetrics: previous.muscleMetrics,
+          ),
           const SizedBox(height: 12),
           Text(
             summary,
@@ -173,6 +282,222 @@ class SessionComparisonCard extends StatelessWidget {
     final diff = currentWeight - previousWeight;
     final value = diff.toStringAsFixed(1);
     return diff >= 0 ? '+$value kg' : '$value kg';
+  }
+}
+
+class MuscleComparisonSection extends StatelessWidget {
+  const MuscleComparisonSection({
+    required this.currentMetrics,
+    required this.previousMetrics,
+    super.key,
+  });
+
+  final List<MuscleMetric> currentMetrics;
+  final List<MuscleMetric> previousMetrics;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _comparisonRows();
+    if (rows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final summary = MuscleComparisonSummary.fromRows(rows);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'فرق العضلات',
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 10),
+        for (final row in rows) ...[
+          MuscleComparisonRow(row: row),
+          if (row != rows.last) const SizedBox(height: 8),
+        ],
+        const SizedBox(height: 10),
+        MuscleComparisonSummaryCard(summary: summary),
+      ],
+    );
+  }
+
+  List<MuscleComparisonData> _comparisonRows() {
+    final previousByName = {
+      for (final metric in previousMetrics) metric.name: metric,
+    };
+
+    final rows = <MuscleComparisonData>[];
+    for (final currentMetric in currentMetrics) {
+      final previousMetric = previousByName[currentMetric.name];
+      if (previousMetric == null) {
+        continue;
+      }
+
+      rows.add(
+        MuscleComparisonData(
+          name: currentMetric.name,
+          currentScore: currentMetric.score,
+          previousScore: previousMetric.score,
+        ),
+      );
+    }
+
+    return rows;
+  }
+}
+
+class MuscleComparisonSummary {
+  const MuscleComparisonSummary({
+    required this.best,
+    required this.needsAttention,
+  });
+
+  final MuscleComparisonData best;
+  final MuscleComparisonData needsAttention;
+
+  factory MuscleComparisonSummary.fromRows(List<MuscleComparisonData> rows) {
+    final sortedRows = [...rows]..sort((a, b) => b.diff.compareTo(a.diff));
+    final attentionRows = [...rows]..sort((a, b) => a.diff.compareTo(b.diff));
+
+    return MuscleComparisonSummary(
+      best: sortedRows.first,
+      needsAttention: attentionRows.first,
+    );
+  }
+}
+
+class MuscleComparisonSummaryCard extends StatelessWidget {
+  const MuscleComparisonSummaryCard({required this.summary, super.key});
+
+  final MuscleComparisonSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_graph, color: colorScheme.primary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'ملخص العضلات',
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'أفضل تحسن: ${summary.best.name} (${summary.best.diffLabel}).',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            summary.needsAttention.diff < 0
+                ? 'تحتاج متابعة: ${summary.needsAttention.name} (${summary.needsAttention.diffLabel}).'
+                : 'أقل تحسن: ${summary.needsAttention.name} (${summary.needsAttention.diffLabel}).',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: summary.needsAttention.diff < 0
+                  ? colorScheme.error
+                  : colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MuscleComparisonData {
+  const MuscleComparisonData({
+    required this.name,
+    required this.currentScore,
+    required this.previousScore,
+  });
+
+  final String name;
+  final int currentScore;
+  final int previousScore;
+
+  int get diff => currentScore - previousScore;
+
+  String get diffLabel {
+    if (diff == 0) {
+      return '0%';
+    }
+
+    return diff > 0 ? '+$diff%' : '$diff%';
+  }
+}
+
+class MuscleComparisonRow extends StatelessWidget {
+  const MuscleComparisonRow({required this.row, super.key});
+
+  final MuscleComparisonData row;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isPositive = row.diff >= 0;
+    final diffColor = isPositive ? colorScheme.primary : colorScheme.error;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  row.name,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'من ${row.previousScore}% إلى ${row.currentScore}%',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            row.diffLabel,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: diffColor,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -540,6 +865,10 @@ class SessionHistoryTile extends StatelessWidget {
                         value: session.phaseLabel,
                       ),
                     ],
+                    if (session.measurements.hasAny) ...[
+                      const SizedBox(height: 16),
+                      SessionMeasurementsSection(session: session),
+                    ],
                     const SizedBox(height: 14),
                     Text(
                       session.summary,
@@ -557,6 +886,8 @@ class SessionHistoryTile extends StatelessWidget {
                         ),
                       ),
                     ],
+                    const SizedBox(height: 16),
+                    MuscleBreakdownSection(metrics: session.muscleMetrics),
                     if (session.hasPhotoPaths) ...[
                       const SizedBox(height: 16),
                       SessionStoredPhotos(
@@ -565,6 +896,19 @@ class SessionHistoryTile extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          showSessionReportExportSheet(context, session),
+                      icon: const Icon(Icons.ios_share),
+                      label: const Text('تصدير التقرير'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     FilledButton(
                       onPressed: () => Navigator.of(context).pop(),
                       style: FilledButton.styleFrom(
@@ -589,6 +933,74 @@ class SessionHistoryTile extends StatelessWidget {
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
     return '${date.year}/${date.month}/${date.day} - $hour:$minute';
+  }
+}
+
+class SessionMeasurementsSection extends StatelessWidget {
+  const SessionMeasurementsSection({required this.session, super.key});
+
+  final ProgressSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final measurements = session.measurements;
+    final rows = <({String label, double? value})>[
+      (label: 'الخصر', value: measurements.waistCm),
+      (label: 'الصدر', value: measurements.chestCm),
+      (label: 'الذراع', value: measurements.armCm),
+      (label: 'الكتف', value: measurements.shoulderCm),
+    ].where((row) => row.value != null).toList(growable: false);
+
+    if (rows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'القياسات اليدوية',
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final row in rows)
+              MeasurementChip(label: row.label, value: row.value!),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class MeasurementChip extends StatelessWidget {
+  const MeasurementChip({required this.label, required this.value, super.key});
+
+  final String label;
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '$label ${value.toStringAsFixed(1)} cm',
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800),
+      ),
+    );
   }
 }
 

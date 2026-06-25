@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/analysis_request.dart';
+import '../models/body_measurements.dart';
 import '../models/photo_angle.dart';
 import '../models/photo_readiness_report.dart';
 import '../models/progress_session.dart';
@@ -12,7 +13,9 @@ import '../services/progress_analysis_service.dart';
 import '../services/session_storage.dart';
 import '../services/supabase_session_service.dart';
 import '../widgets/analysis_loading_section.dart';
+import '../widgets/data_quality_dashboard.dart';
 import '../widgets/intro_section.dart';
+import '../widgets/next_session_plan_section.dart';
 import '../widgets/photo_capture_section.dart';
 import '../widgets/progress_trend_section.dart';
 import '../widgets/progress_report_section.dart';
@@ -35,6 +38,10 @@ class _StartPageState extends State<StartPage> {
   final _sessionStorage = createSessionStorage();
   final _supabaseSessionService = SupabaseSessionService();
   final _weightController = TextEditingController();
+  final _waistController = TextEditingController();
+  final _chestController = TextEditingController();
+  final _armController = TextEditingController();
+  final _shoulderController = TextEditingController();
   final _phaseController = TextEditingController();
   final _noteController = TextEditingController();
   final Map<PhotoAngle, XFile> _photos = {};
@@ -55,6 +62,10 @@ class _StartPageState extends State<StartPage> {
   @override
   void dispose() {
     _weightController.dispose();
+    _waistController.dispose();
+    _chestController.dispose();
+    _armController.dispose();
+    _shoulderController.dispose();
     _phaseController.dispose();
     _noteController.dispose();
     super.dispose();
@@ -245,6 +256,7 @@ class _StartPageState extends State<StartPage> {
         phaseLabel: _phaseController.text.trim(),
         note: _noteController.text.trim(),
         readinessReport: _photoReadinessReport,
+        measurements: _bodyMeasurementsFromInputs(),
       ),
     );
 
@@ -274,6 +286,7 @@ class _StartPageState extends State<StartPage> {
       weightKg: _parseWeight(_weightController.text),
       phaseLabel: _phaseController.text.trim(),
       note: _noteController.text.trim(),
+      measurements: _bodyMeasurementsFromInputs(),
     );
 
     setState(() {
@@ -355,6 +368,10 @@ class _StartPageState extends State<StartPage> {
       _currentReport = null;
     });
     _weightController.clear();
+    _waistController.clear();
+    _chestController.clear();
+    _armController.clear();
+    _shoulderController.clear();
     _phaseController.clear();
     _noteController.clear();
   }
@@ -457,6 +474,29 @@ class _StartPageState extends State<StartPage> {
     return double.tryParse(normalizedValue);
   }
 
+  BodyMeasurements _bodyMeasurementsFromInputs() {
+    return BodyMeasurements(
+      waistCm: _parseMeasurement(_waistController.text),
+      chestCm: _parseMeasurement(_chestController.text),
+      armCm: _parseMeasurement(_armController.text),
+      shoulderCm: _parseMeasurement(_shoulderController.text),
+    );
+  }
+
+  double? _parseMeasurement(String value) {
+    final normalizedValue = value.trim().replaceAll(',', '.');
+    if (normalizedValue.isEmpty) {
+      return null;
+    }
+
+    final parsedValue = double.tryParse(normalizedValue);
+    if (parsedValue == null || parsedValue <= 0) {
+      return null;
+    }
+
+    return parsedValue;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -491,6 +531,10 @@ class _StartPageState extends State<StartPage> {
                   session: _currentReport!,
                   isSaved: _currentReportSaved,
                   weightController: _weightController,
+                  waistController: _waistController,
+                  chestController: _chestController,
+                  armController: _armController,
+                  shoulderController: _shoulderController,
                   phaseController: _phaseController,
                   noteController: _noteController,
                   onSaveReport: () {
@@ -501,6 +545,10 @@ class _StartPageState extends State<StartPage> {
                 ),
               ],
               if (_sessions.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                DataQualityDashboard(sessions: _sessions),
+                const SizedBox(height: 24),
+                NextSessionPlanSection(sessions: _sessions),
                 const SizedBox(height: 24),
                 ProgressTrendSection(sessions: _sessions),
                 const SizedBox(height: 24),

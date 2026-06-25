@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../models/progress_session.dart';
+import 'muscle_breakdown_section.dart';
+import 'session_report_export_sheet.dart';
 
 class ProgressReportSection extends StatelessWidget {
   const ProgressReportSection({
     required this.session,
     required this.isSaved,
     required this.weightController,
+    required this.waistController,
+    required this.chestController,
+    required this.armController,
+    required this.shoulderController,
     required this.phaseController,
     required this.noteController,
     required this.onSaveReport,
@@ -18,6 +24,10 @@ class ProgressReportSection extends StatelessWidget {
   final ProgressSession session;
   final bool isSaved;
   final TextEditingController weightController;
+  final TextEditingController waistController;
+  final TextEditingController chestController;
+  final TextEditingController armController;
+  final TextEditingController shoulderController;
   final TextEditingController phaseController;
   final TextEditingController noteController;
   final VoidCallback onSaveReport;
@@ -124,8 +134,14 @@ class ProgressReportSection extends StatelessWidget {
                 'كلما كانت الوقفة أقرب بين الجلسات كانت المقارنة أفضل.',
           ),
           const SizedBox(height: 16),
+          MuscleBreakdownSection(metrics: session.muscleMetrics),
+          const SizedBox(height: 16),
           SessionInputs(
             weightController: weightController,
+            waistController: waistController,
+            chestController: chestController,
+            armController: armController,
+            shoulderController: shoulderController,
             phaseController: phaseController,
             noteController: noteController,
             enabled: !isSaved,
@@ -151,6 +167,18 @@ class ProgressReportSection extends StatelessWidget {
             icon: Icon(isSaved ? Icons.check_circle : Icons.save_outlined),
             label: Text(isSaved ? 'تم حفظ التقرير' : 'حفظ التقرير'),
             style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => showSessionReportExportSheet(context, session),
+            icon: const Icon(Icons.ios_share),
+            label: const Text('تصدير التقرير'),
+            style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -302,6 +330,10 @@ class ScoreCard extends StatelessWidget {
 class SessionInputs extends StatelessWidget {
   const SessionInputs({
     required this.weightController,
+    required this.waistController,
+    required this.chestController,
+    required this.armController,
+    required this.shoulderController,
     required this.phaseController,
     required this.noteController,
     required this.enabled,
@@ -309,6 +341,10 @@ class SessionInputs extends StatelessWidget {
   });
 
   final TextEditingController weightController;
+  final TextEditingController waistController;
+  final TextEditingController chestController;
+  final TextEditingController armController;
+  final TextEditingController shoulderController;
   final TextEditingController phaseController;
   final TextEditingController noteController;
   final bool enabled;
@@ -356,6 +392,53 @@ class SessionInputs extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 10),
+        Text(
+          'قياسات اختيارية',
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: MeasurementField(
+                controller: waistController,
+                enabled: enabled,
+                label: 'الخصر',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: MeasurementField(
+                controller: chestController,
+                enabled: enabled,
+                label: 'الصدر',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: MeasurementField(
+                controller: armController,
+                enabled: enabled,
+                label: 'الذراع',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: MeasurementField(
+                controller: shoulderController,
+                enabled: enabled,
+                label: 'الكتف',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
         TextField(
           controller: noteController,
           enabled: enabled,
@@ -368,6 +451,33 @@ class SessionInputs extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class MeasurementField extends StatelessWidget {
+  const MeasurementField({
+    required this.controller,
+    required this.enabled,
+    required this.label,
+    super.key,
+  });
+
+  final TextEditingController controller;
+  final bool enabled;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixText: 'cm',
+        border: const OutlineInputBorder(),
+      ),
     );
   }
 }

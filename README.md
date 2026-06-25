@@ -10,6 +10,11 @@ The current product is designed to stay portable across web, Android, and iOS. P
 - Front, side, and back progress photo inputs.
 - Photo readiness checks for pose stability, image clarity, and comparison quality.
 - Mock analysis engine for visual progress, confidence, summary, recommendations, and warnings.
+- Muscle-development breakdown for shoulders, chest, arms, and core/waist.
+- Optional manual measurements for waist, chest, arm, and shoulder tracking.
+- Data-quality dashboard for session count, posture stability, and AI readiness.
+- History filters for all sessions, sessions with measurements, and sessions with stored photos.
+- Text export/copy for session reports.
 - AI-ready analysis service interface with a Supabase Edge Function provider path.
 - Local persistence so sessions survive refreshes.
 - Supabase persistence for `progress_sessions`.
@@ -57,6 +62,8 @@ Required project pieces:
 - Run `supabase/progress_sessions.sql` in the Supabase SQL editor.
 - Enable anonymous authentication in Supabase Auth.
 - Use the `progress-photos` storage bucket created by the SQL script.
+- Re-run the SQL file after updates so new columns such as `muscle_metrics` are added.
+- The SQL also keeps `body_measurements` ready for optional manual measurement history.
 - Keep RLS policies enabled.
 
 The Flutter app uses only the Supabase URL and publishable key. Do not place service-role keys or AI provider secrets in Flutter.

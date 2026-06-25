@@ -18,6 +18,8 @@ create table if not exists public.progress_sessions (
   front_photo_path text,
   side_photo_path text,
   back_photo_path text,
+  muscle_metrics jsonb not null default '[]'::jsonb,
+  body_measurements jsonb not null default '{}'::jsonb,
   inserted_at timestamptz not null default now()
 );
 
@@ -29,6 +31,12 @@ add column if not exists side_photo_path text;
 
 alter table public.progress_sessions
 add column if not exists back_photo_path text;
+
+alter table public.progress_sessions
+add column if not exists muscle_metrics jsonb not null default '[]'::jsonb;
+
+alter table public.progress_sessions
+add column if not exists body_measurements jsonb not null default '{}'::jsonb;
 
 alter table public.progress_sessions enable row level security;
 

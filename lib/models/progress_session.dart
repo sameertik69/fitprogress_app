@@ -1,3 +1,6 @@
+import 'body_measurements.dart';
+import 'muscle_metric.dart';
+
 class ProgressSession {
   const ProgressSession({
     this.id,
@@ -16,6 +19,8 @@ class ProgressSession {
     this.frontPhotoPath,
     this.sidePhotoPath,
     this.backPhotoPath,
+    this.muscleMetrics = defaultMuscleMetrics,
+    this.measurements = const BodyMeasurements(),
   });
 
   final String? id;
@@ -34,6 +39,8 @@ class ProgressSession {
   final String? frontPhotoPath;
   final String? sidePhotoPath;
   final String? backPhotoPath;
+  final List<MuscleMetric> muscleMetrics;
+  final BodyMeasurements measurements;
 
   List<String> get photoPaths {
     return [?frontPhotoPath, ?sidePhotoPath, ?backPhotoPath];
@@ -70,6 +77,8 @@ class ProgressSession {
       frontPhotoPath: json['frontPhotoPath'] as String?,
       sidePhotoPath: json['sidePhotoPath'] as String?,
       backPhotoPath: json['backPhotoPath'] as String?,
+      muscleMetrics: _muscleMetricsFromJson(json['muscleMetrics']),
+      measurements: BodyMeasurements.fromJson(json['measurements']),
     );
   }
 
@@ -94,6 +103,8 @@ class ProgressSession {
       frontPhotoPath: row['front_photo_path'] as String?,
       sidePhotoPath: row['side_photo_path'] as String?,
       backPhotoPath: row['back_photo_path'] as String?,
+      muscleMetrics: _muscleMetricsFromJson(row['muscle_metrics']),
+      measurements: BodyMeasurements.fromJson(row['body_measurements']),
     );
   }
 
@@ -115,6 +126,10 @@ class ProgressSession {
       'frontPhotoPath': frontPhotoPath,
       'sidePhotoPath': sidePhotoPath,
       'backPhotoPath': backPhotoPath,
+      'muscleMetrics': muscleMetrics
+          .map((metric) => metric.toJson())
+          .toList(growable: false),
+      'measurements': measurements.toJson(),
     };
   }
 
@@ -139,6 +154,10 @@ class ProgressSession {
       'front_photo_path': frontPhotoPath ?? this.frontPhotoPath,
       'side_photo_path': sidePhotoPath ?? this.sidePhotoPath,
       'back_photo_path': backPhotoPath ?? this.backPhotoPath,
+      'muscle_metrics': muscleMetrics
+          .map((metric) => metric.toJson())
+          .toList(growable: false),
+      'body_measurements': measurements.toJson(),
     };
   }
 
@@ -159,6 +178,8 @@ class ProgressSession {
     String? frontPhotoPath,
     String? sidePhotoPath,
     String? backPhotoPath,
+    List<MuscleMetric>? muscleMetrics,
+    BodyMeasurements? measurements,
   }) {
     return ProgressSession(
       id: id ?? this.id,
@@ -177,6 +198,25 @@ class ProgressSession {
       frontPhotoPath: frontPhotoPath ?? this.frontPhotoPath,
       sidePhotoPath: sidePhotoPath ?? this.sidePhotoPath,
       backPhotoPath: backPhotoPath ?? this.backPhotoPath,
+      muscleMetrics: muscleMetrics ?? this.muscleMetrics,
+      measurements: measurements ?? this.measurements,
     );
+  }
+
+  static List<MuscleMetric> _muscleMetricsFromJson(Object? value) {
+    if (value is! List) {
+      return defaultMuscleMetrics;
+    }
+
+    final metrics = <MuscleMetric>[];
+    for (final item in value) {
+      if (item is Map<String, dynamic>) {
+        metrics.add(MuscleMetric.fromJson(item));
+      } else if (item is Map) {
+        metrics.add(MuscleMetric.fromJson(Map<String, dynamic>.from(item)));
+      }
+    }
+
+    return metrics.isEmpty ? defaultMuscleMetrics : metrics;
   }
 }

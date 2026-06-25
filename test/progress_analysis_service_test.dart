@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:fitprogress_app/models/ai_analysis_response.dart';
 import 'package:fitprogress_app/models/analysis_request.dart';
+import 'package:fitprogress_app/models/body_measurements.dart';
+import 'package:fitprogress_app/models/muscle_metric.dart';
 import 'package:fitprogress_app/models/photo_angle.dart';
 import 'package:fitprogress_app/models/photo_readiness_report.dart';
 import 'package:fitprogress_app/services/ai_analysis_provider.dart';
@@ -24,6 +26,8 @@ void main() {
     expect(result.symmetryLabel, 'مقبول');
     expect(result.comparabilityLabel, 'ضعيفة');
     expect(result.summary, contains('الجلسة رقم 1'));
+    expect(result.muscleMetrics, hasLength(4));
+    expect(result.muscleMetrics.first.name, 'الأكتاف');
   });
 
   test('uses photo count and previous sessions to shape the result', () async {
@@ -75,6 +79,14 @@ void main() {
           comparabilityLabel: 'قوية',
           shoulderWaistChange: 7.4,
           recommendation: 'استمر بنفس ظروف التصوير',
+          muscleMetrics: [
+            MuscleMetric(
+              name: 'الأكتاف',
+              score: 92,
+              status: 'قوي',
+              note: 'تطور واضح',
+            ),
+          ],
         ),
       ),
     );
@@ -85,6 +97,7 @@ void main() {
 
     expect(result.visualScore, 91);
     expect(result.summary, 'تحليل AI تجريبي');
+    expect(result.muscleMetrics.single.score, 92);
   });
 
   test('ai response parser clamps scores and validates fields', () {
@@ -97,10 +110,19 @@ void main() {
       'comparabilityLabel': 'قوية',
       'shoulderWaistChange': 6.5,
       'recommendation': 'حافظ على نفس المسافة',
+      'muscleMetrics': [
+        {
+          'name': 'الصدر',
+          'score': 140,
+          'status': 'قوي',
+          'note': 'قراءة تجريبية',
+        },
+      ],
     });
 
     expect(response.visualScore, 100);
     expect(response.toAnalysisResult().recommendation, 'حافظ على نفس المسافة');
+    expect(response.muscleMetrics.single.score, 100);
   });
 
   test(
@@ -123,6 +145,12 @@ void main() {
           weightKg: 82.5,
           phaseLabel: 'تنشيف',
           note: 'أسبوع جيد',
+          measurements: const BodyMeasurements(
+            waistCm: 82,
+            chestCm: 104,
+            armCm: 36,
+            shoulderCm: 118,
+          ),
           readinessReport: const PhotoReadinessReport(
             level: PhotoReadinessLevel.ready,
             title: 'جاهز',
@@ -136,11 +164,14 @@ void main() {
 
       final photos = payload['photos'] as List<Map<String, dynamic>>;
       final context = payload['context'] as Map<String, dynamic>;
+      final measurements = context['measurements'] as Map<String, dynamic>;
 
       expect(photos.single['angle'], 'front');
       expect(photos.single['sizeBytes'], 12);
       expect(photos.single.containsKey('bytes'), isFalse);
       expect(context['weightKg'], 82.5);
+      expect(measurements['waistCm'], 82);
+      expect(measurements['shoulderCm'], 118);
       expect((payload['previousSessions'] as List).length, 1);
     },
   );
